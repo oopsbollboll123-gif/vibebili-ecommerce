@@ -234,7 +234,6 @@ export const CartProvider = ({ children }) => {
         showToast,
         applyVoucher,
         removeVoucher,
-        applyFreeship,
         removeFreeship,
         systemVouchers: SYSTEM_VOUCHERS
       }}
