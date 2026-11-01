@@ -39,6 +39,14 @@ export const authAPI = {
     method: 'POST',
     body: JSON.stringify(userData)
   }),
+  registerSeller: (sellerData) => request('/auth/register-seller', {
+    method: 'POST',
+    body: JSON.stringify(sellerData)
+  }),
+  upgradeToSeller: (sellerData) => request('/auth/upgrade-seller', {
+    method: 'POST',
+    body: JSON.stringify(sellerData)
+  }),
   getMe: () => request('/auth/me'),
   getAllUsers: () => request('/auth/users'),
   updateUserRole: (userId, data) => request(`/auth/users/${userId}/role`, {
@@ -63,10 +71,19 @@ export const productAPI = {
     method: 'POST',
     body: JSON.stringify(productData)
   }),
+  bulkCreate: (items) => request('/products/bulk', {
+    method: 'POST',
+    body: JSON.stringify({ items })
+  }),
   delete: (id) => request(`/products/${id}`, {
     method: 'DELETE'
   }),
-  getCategories: () => request('/products/categories')
+  getCategories: () => request('/products/categories'),
+  getReviews: (id) => request(`/products/${id}/reviews`),
+  createReview: (id, reviewData) => request(`/products/${id}/reviews`, {
+    method: 'POST',
+    body: JSON.stringify(reviewData)
+  })
 };
 
 // 3. Phân hệ Đơn hàng (Orders & Checkout)
@@ -80,6 +97,14 @@ export const orderAPI = {
   updateStatus: (orderId, status) => request(`/orders/${orderId}/status`, {
     method: 'PUT',
     body: JSON.stringify({ status })
+  }),
+  schedulePickup: (orderId, pickupData) => request(`/orders/${orderId}/pickup`, {
+    method: 'PUT',
+    body: JSON.stringify(pickupData)
+  }),
+  updateAddress: (orderId, addressData) => request(`/orders/${orderId}/address`, {
+    method: 'PUT',
+    body: JSON.stringify(addressData)
   })
 };
 
@@ -89,5 +114,41 @@ export const tryOnAPI = {
   generateTryOn: (payload) => request('/try-on/generate', {
     method: 'POST',
     body: JSON.stringify(payload)
+  })
+};
+
+// 5. Phân hệ Dịch vụ Spa Tóc, Marketing & Tài chính Shop
+export const serviceAPI = {
+  // Spa tóc
+  createSpaRequest: (data) => request('/services/spa', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
+  getMySpaRequests: () => request('/services/spa/my'),
+  getSellerSpaRequests: () => request('/services/spa/seller'),
+  updateSpaStatus: (id, data) => request(`/services/spa/${id}/status`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  }),
+
+  // Marketing & Vouchers
+  getVouchers: () => request('/services/marketing/vouchers'),
+  createVoucher: (data) => request('/services/marketing/vouchers', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
+  deleteVoucher: (id) => request(`/services/marketing/vouchers/${id}`, {
+    method: 'DELETE'
+  }),
+
+  // Tài chính & Ví Shop
+  getFinance: () => request('/services/finance'),
+  updateBankAccount: (data) => request('/services/finance/bank-account', {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  }),
+  requestWithdrawal: (amount) => request('/services/finance/withdraw', {
+    method: 'POST',
+    body: JSON.stringify({ amount })
   })
 };

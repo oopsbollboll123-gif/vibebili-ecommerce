@@ -10,8 +10,37 @@ export const useCart = () => {
   return context;
 };
 
+// Danh sách voucher hợp lệ hệ thống
+export const SYSTEM_VOUCHERS = [
+  {
+    code: 'VIBENEW100',
+    title: 'Giảm 100.000 đ cho Thành Viên Mới',
+    description: 'Áp dụng cho đơn hàng từ 300.000 đ',
+    minOrder: 300000,
+    type: 'fixed',
+    value: 100000
+  },
+  {
+    code: 'VIBEWIG20',
+    title: 'Giảm 20% Tóc Giả & Thời Trang',
+    description: 'Giảm tối đa 100.000 đ cho đơn từ 400.000 đ',
+    minOrder: 400000,
+    type: 'percent',
+    value: 20,
+    maxDiscount: 100000
+  },
+  {
+    code: 'FREESHIP50K',
+    title: 'Miễn Phí Vận Chuyển Toàn Quốc',
+    description: 'Giảm 30.000 đ phí ship cho đơn từ 200.000 đ',
+    minOrder: 200000,
+    type: 'freeship',
+    value: 30000
+  }
+];
+
 export const CartProvider = ({ children }) => {
-  // Lấy dữ liệu giỏ hàng đã lưu trong LocalStorage (nếu có)
+  // Lấy dữ liệu giỏ hàng đã lưu trong LocalStorage
   const [cartItems, setCartItems] = useState(() => {
     try {
       const saved = localStorage.getItem('vibebili_cart') || localStorage.getItem('wigvogue_cart');
@@ -24,7 +53,11 @@ export const CartProvider = ({ children }) => {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
-  // Đồng bộ giỏ hàng vào LocalStorage mỗi khi có thay đổi
+  // Voucher states
+  const [appliedVoucher, setAppliedVoucher] = useState(null);
+  const [appliedFreeship, setAppliedFreeship] = useState(null);
+
+  // Đồng bộ giỏ hàng vào LocalStorage
   useEffect(() => {
     try {
       localStorage.setItem('vibebili_cart', JSON.stringify(cartItems));
@@ -33,7 +66,7 @@ export const CartProvider = ({ children }) => {
     }
   }, [cartItems]);
 
-  // Hiện toast thông báo ngắn gọn
+  // Hiện toast thông báo
   const showToast = (message) => {
     setToastMessage(message);
     setTimeout(() => {
@@ -77,7 +110,7 @@ export const CartProvider = ({ children }) => {
       }
     });
 
-    showToast(`Đã thêm "${product.name?.slice(0, 28)}..." vào giỏ!`);
+    showToast(`Đã thêm "${product.name?.slice(0, 24)}..." vào giỏ hàng!`);
     setIsCartOpen(true);
   };
 
@@ -103,14 +136,76 @@ export const CartProvider = ({ children }) => {
 
   const clearCart = () => {
     setCartItems([]);
+    setAppliedVoucher(null);
+    setAppliedFreeship(null);
     localStorage.removeItem('vibebili_cart');
     localStorage.removeItem('wigvogue_cart');
   };
 
   const totalCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
-  const shippingFee = subtotal >= 500000 || subtotal === 0 ? 0 : 30000;
-  const totalAmount = subtotal + shippingFee;
+  const baseShippingFee = subtotal >= 500000 || subtotal === 0 ? 0 : 30000;
+
+  // Tính giảm giá Voucher
+  let voucherDiscount = 0;
+  if (appliedVoucher) {
+    if (subtotal >= (appliedVoucher.minOrder || 0)) {
+      if (appliedVoucher.type === 'fixed') {
+        voucherDiscount = Math.min(appliedVoucher.value, subtotal);
+      } else if (appliedVoucher.type === 'percent') {
+        const raw = (subtotal * appliedVoucher.value) / 100;
+        voucherDiscount = appliedVoucher.maxDiscount ? Math.min(raw, appliedVoucher.maxDiscount) : raw;
+      }
+    }
+  }
+
+  // Tính giảm giá Freeship
+  let freeshipDiscount = 0;
+  if (appliedFreeship && baseShippingFee > 0 && subtotal >= (appliedFreeship.minOrder || 0)) {
+    freeshipDiscount = Math.min(baseShippingFee, appliedFreeship.value || 30000);
+  }
+
+  const finalShippingFee = Math.max(0, baseShippingFee - freeshipDiscount);
+  const totalAmount = Math.max(0, subtotal - voucherDiscount + finalShippingFee);
+
+  // Áp dụng voucher
+  const applyVoucher = (code) => {
+    const cleanCode = code.trim().toUpperCase();
+    const found = SYSTEM_VOUCHERS.find(v => v.code === cleanCode);
+
+    if (!found) {
+      showToast(`Mã "${cleanCode}" không tồn tại hoặc đã hết hạn!`);
+      return false;
+    }
+
+    if (found.type === 'freeship') {
+      if (subtotal < found.minOrder) {
+        showToast(`Mã Freeship yêu cầu đơn tối thiểu ${found.minOrder.toLocaleString()}đ!`);
+        return false;
+      }
+      setAppliedFreeship(found);
+      showToast(`Áp dụng thành công mã Freeship ${found.code}!`);
+      return true;
+    } else {
+      if (subtotal < found.minOrder) {
+        showToast(`Mã "${cleanCode}" yêu cầu đơn tối thiểu ${found.minOrder.toLocaleString()}đ!`);
+        return false;
+      }
+      setAppliedVoucher(found);
+      showToast(`Áp dụng thành công mã giảm giá ${found.code}!`);
+      return true;
+    }
+  };
+
+  const removeVoucher = () => {
+    setAppliedVoucher(null);
+    showToast('Đã hủy áp dụng mã giảm giá');
+  };
+
+  const removeFreeship = () => {
+    setAppliedFreeship(null);
+    showToast('Đã hủy áp dụng mã Freeship');
+  };
 
   const openCart = () => setIsCartOpen(true);
   const closeCart = () => setIsCartOpen(false);
@@ -121,7 +216,12 @@ export const CartProvider = ({ children }) => {
         cartItems,
         totalCount,
         subtotal,
-        shippingFee,
+        shippingFee: baseShippingFee,
+        finalShippingFee,
+        voucherDiscount,
+        freeshipDiscount,
+        appliedVoucher,
+        appliedFreeship,
         totalAmount,
         isCartOpen,
         toastMessage,
@@ -132,10 +232,14 @@ export const CartProvider = ({ children }) => {
         removeFromCart,
         clearCart,
         showToast,
+        applyVoucher,
+        removeVoucher,
+        applyFreeship,
+        removeFreeship,
+        systemVouchers: SYSTEM_VOUCHERS
       }}
     >
       {children}
-      {/* Toast Notification theo chuẩn UI/UX Pro Max Priority 2 & 8 */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 bg-black/90 text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-2xl backdrop-blur-md border border-white/10 flex items-center space-x-2 animate-bounce">
           <span className="w-2 h-2 rounded-full bg-green-400 inline-block"></span>

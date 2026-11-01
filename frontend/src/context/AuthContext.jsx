@@ -61,6 +61,41 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Đăng ký mở Gian Hàng Người Bán mới (Seller Registration)
+  const registerSeller = async (sellerData) => {
+    try {
+      const res = await authAPI.registerSeller(sellerData);
+      if (res.success && res.data) {
+        setUser(res.data.user);
+        setToken(res.data.token);
+        localStorage.setItem('vibebili_token', res.data.token);
+        localStorage.setItem('vibebili_user', JSON.stringify(res.data.user));
+        setIsAuthModalOpen(false);
+        return { success: true, user: res.data.user, message: res.message };
+      }
+      return { success: false, message: res.message || 'Đăng ký gian hàng thất bại' };
+    } catch (err) {
+      return { success: false, message: err.message || 'Lỗi kết nối máy chủ' };
+    }
+  };
+
+  // Nâng cấp tài khoản hiện tại thành Người Bán (Upgrade to Seller)
+  const upgradeToSeller = async (sellerData) => {
+    try {
+      const res = await authAPI.upgradeToSeller(sellerData);
+      if (res.success && res.data) {
+        setUser(res.data.user);
+        setToken(res.data.token);
+        localStorage.setItem('vibebili_token', res.data.token);
+        localStorage.setItem('vibebili_user', JSON.stringify(res.data.user));
+        return { success: true, user: res.data.user, message: res.message };
+      }
+      return { success: false, message: res.message || 'Kích hoạt gian hàng thất bại' };
+    } catch (err) {
+      return { success: false, message: err.message || 'Lỗi kết nối máy chủ' };
+    }
+  };
+
   // Đăng xuất
   const logout = () => {
     setUser(null);
@@ -99,6 +134,8 @@ export const AuthProvider = ({ children }) => {
         closeAuthModal,
         login,
         register,
+        registerSeller,
+        upgradeToSeller,
         logout,
       }}
     >

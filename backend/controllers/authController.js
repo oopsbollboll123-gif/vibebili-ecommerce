@@ -18,9 +18,9 @@ const generateToken = (user) => {
   );
 };
 
-// 1. Đăng ký tài khoản (Register)
+// 1. Đăng ký tài khoản (Register - Khách hàng hoặc Người bán)
 const register = async (req, res) => {
-  const { name, email, password, role = 'customer', phone, address } = req.body;
+  const { name, email, password, role = 'customer', phone, address, shop_name, business_type } = req.body;
 
   if (!name || !email || !password) {
     return res.status(400).json({
@@ -52,13 +52,27 @@ const register = async (req, res) => {
       role,
       phone,
       address,
+      shop_name: shop_name || (role === 'seller' ? name : null),
+      business_type: business_type || null,
       status: 'active'
     };
+
+    // Nếu đăng ký là người bán, ghi nhận vào danh sách pendingSellers để Admin theo dõi
+    if (role === 'seller') {
+      mockData.pendingSellers.unshift({
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        storeName: newUser.shop_name,
+        phone: newUser.phone || '0900000000',
+        date: new Date().toISOString().split('T')[0]
+      });
+    }
 
     const token = generateToken(newUser);
     return res.status(201).json({
       success: true,
-      message: 'Đăng ký tài khoản thành công!',
+      message: role === 'seller' ? 'Đăng ký gian hàng Người Bán thành công!' : 'Đăng ký tài khoản thành công!',
       data: { token, user: newUser }
     });
   } catch (error) {
@@ -78,15 +92,160 @@ const register = async (req, res) => {
       role,
       phone: phone || '0900000000',
       address: address || 'TP. Hồ Chí Minh',
+      shop_name: shop_name || (role === 'seller' ? name : null),
+      business_type: business_type || null,
       status: 'active'
     };
     mockData.users.push(newUser);
 
+    if (role === 'seller') {
+      mockData.pendingSellers.unshift({
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        storeName: newUser.shop_name,
+        phone: newUser.phone,
+        date: new Date().toISOString().split('T')[0]
+      });
+    }
+
     const token = generateToken(newUser);
     return res.status(201).json({
       success: true,
-      message: 'Đăng ký tài khoản thành công!',
+      message: role === 'seller' ? 'Đăng ký gian hàng Người Bán thành công!' : 'Đăng ký tài khoản thành công!',
       data: { token, user: newUser }
+    });
+  }
+};
+
+// 1.1. Đăng ký mở Gian Hàng Người Bán Chuyên Biệt (Seller Onboarding)
+const registerSeller = async (req, res) => {
+  const {
+    shop_name,
+    owner_name,
+    email,
+    password,
+    phone,
+    warehouse_address,
+    business_type = 'Tóc Giả & Thời Trang',
+    identity_card,
+    description
+  } = req.body;
+
+  if (!shop_name || !owner_name || !email || !password || !phone) {
+    return res.status(400).json({
+      success: false,
+      message: 'Vui lòng điền đầy đủ: Tên Shop, Tên chủ shop, Email, Mật khẩu và Số điện thoại!'
+    });
+  }
+
+  req.body.name = owner_name;
+  req.body.role = 'seller';
+  req.body.address = warehouse_address || 'TP. Hồ Chí Minh';
+  req.body.shop_name = shop_name;
+  req.body.business_type = business_type;
+
+  return register(req, res);
+};
+
+// 1.2. Nâng cấp tài khoản Khách hàng hiện tại thành Người Bán (Upgrade to Seller)
+const upgradeToSeller = async (req, res) => {
+  const userId = req.user.id;
+  const {
+    shop_name,
+    phone,
+    warehouse_address,
+    business_type = 'Tóc Giả & Thời Trang',
+    description
+  } = req.body;
+
+  if (!shop_name || !phone) {
+    return res.status(400).json({
+      success: false,
+      message: 'Vui lòng nhập Tên Gian Hàng và Số điện thoại liên hệ!'
+    });
+  }
+
+  try {
+    // Cập nhật trong MySQL
+    await db.query(
+      `UPDATE Users 
+       SET role = 'seller', 
+           phone = COALESCE(?, phone), 
+           address = COALESCE(?, address),
+           status = 'active'
+       WHERE id = ?`,
+      [phone, warehouse_address || null, userId]
+    );
+
+    const [rows] = await db.query('SELECT * FROM Users WHERE id = ?', [userId]);
+    const user = rows[0] || req.user;
+    const updatedUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: 'seller',
+      phone: phone || user.phone,
+      address: warehouse_address || user.address,
+      shop_name: shop_name,
+      business_type: business_type,
+      status: 'active'
+    };
+
+    // Thêm vào danh sách seller
+    mockData.pendingSellers.unshift({
+      id: updatedUser.id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      storeName: shop_name,
+      phone: updatedUser.phone,
+      date: new Date().toISOString().split('T')[0]
+    });
+
+    const token = generateToken(updatedUser);
+    return res.status(200).json({
+      success: true,
+      message: 'Chúc mừng! Bạn đã nâng cấp thành công tài khoản Người Bán (Seller)!',
+      data: { token, user: updatedUser }
+    });
+  } catch (error) {
+    console.warn('[Upgrade Seller fallback]: Đang lưu vào Mock Data do MySQL chưa kết nối (' + error.message + ')');
+    
+    const user = mockData.users.find(u => u.id === userId || u.email === req.user.email);
+    if (user) {
+      user.role = 'seller';
+      user.phone = phone || user.phone;
+      user.address = warehouse_address || user.address;
+      user.shop_name = shop_name;
+      user.business_type = business_type;
+    }
+
+    const updatedUser = user ? { ...user, role: 'seller', shop_name } : {
+      id: userId,
+      name: req.user.name,
+      email: req.user.email,
+      role: 'seller',
+      phone: phone,
+      address: warehouse_address,
+      shop_name: shop_name,
+      business_type: business_type,
+      status: 'active'
+    };
+
+    mockData.pendingSellers.unshift({
+      id: updatedUser.id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      storeName: shop_name,
+      phone: updatedUser.phone,
+      date: new Date().toISOString().split('T')[0]
+    });
+
+    const token = generateToken(updatedUser);
+    return res.status(200).json({
+      success: true,
+      message: 'Chúc mừng! Bạn đã kích hoạt thành công gian hàng Người Bán (Seller)!',
+      data: { token, user: updatedUser }
     });
   }
 };
@@ -241,6 +400,8 @@ const getPendingSellers = async (req, res) => {
 
 module.exports = {
   register,
+  registerSeller,
+  upgradeToSeller,
   login,
   getProfile,
   getAllUsers,

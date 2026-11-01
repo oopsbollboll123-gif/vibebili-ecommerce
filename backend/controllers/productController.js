@@ -210,7 +210,68 @@ const createProduct = async (req, res) => {
   }
 };
 
-// 4. Xóa sản phẩm (Seller / Admin)
+// 4. Đăng tải sản phẩm hàng loạt (Bulk Upload)
+const bulkCreateProducts = async (req, res) => {
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ success: false, message: 'Danh sách sản phẩm tải lên không hợp lệ!' });
+  }
+
+  const sellerId = req.user?.id || 2;
+  const createdList = [];
+
+  for (const item of items) {
+    if (!item.name || !item.price) continue;
+    const catId = item.category?.includes('Thời Trang') ? 2 : 1;
+    const catName = catId === 2 ? 'Thời Trang Nữ' : 'Tóc Giả Cao Cấp';
+    const defaultImg = item.image || (catId === 1
+      ? 'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=600&q=80'
+      : 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=600&q=80');
+
+    const newProd = {
+      id: mockData.products.length + 1,
+      seller_id: sellerId,
+      seller_name: req.user?.shop_name || req.user?.name || 'Wig Luxury Sài Gòn',
+      category_id: catId,
+      category_name: catName,
+      name: item.name,
+      slug: item.name.toLowerCase().replace(/\s+/g, '-'),
+      description: item.description || 'Sản phẩm chính hãng đăng bán qua tính năng Bulk Upload.',
+      price: Number(item.price),
+      original_price: Number(item.original_price || item.price * 1.3),
+      main_image: defaultImg,
+      rating: 5.0,
+      sold_count: 0,
+      is_hot: true,
+      is_combo: false,
+      options: [
+        { name: 'Màu sắc', values: [item.color || 'Mặc định'] },
+        { name: 'Kích cỡ', values: [item.size || 'Tiêu chuẩn'] }
+      ],
+      variants: [
+        {
+          id: Date.now() + Math.floor(Math.random() * 1000),
+          sku: 'SKU-' + Math.floor(100000 + Math.random() * 900000),
+          price: Number(item.price),
+          original_price: Number(item.original_price || item.price * 1.3),
+          stock: Number(item.stock || 50),
+          title: `${item.color || 'Mặc định'} / ${item.size || 'Tiêu chuẩn'}`
+        }
+      ]
+    };
+    mockData.products.unshift(newProd);
+    createdList.push(newProd);
+  }
+
+  return res.status(201).json({
+    success: true,
+    message: `Đăng tải hàng loạt thành công ${createdList.length} sản phẩm lên gian hàng!`,
+    count: createdList.length,
+    data: createdList
+  });
+};
+
+// 5. Xóa sản phẩm (Seller / Admin)
 const deleteProduct = async (req, res) => {
   const { id } = req.params;
   try {
@@ -225,7 +286,7 @@ const deleteProduct = async (req, res) => {
   }
 };
 
-// 5. Lấy danh mục sản phẩm toàn hệ thống
+// 6. Lấy danh mục sản phẩm toàn hệ thống
 const getCategories = async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM Categories ORDER BY id ASC');
@@ -235,10 +296,67 @@ const getCategories = async (req, res) => {
   }
 };
 
+// 7. Lấy danh sách đánh giá thực tế của sản phẩm (Reviews kèm Fit Tags)
+const getProductReviews = async (req, res) => {
+  const { id } = req.params;
+  const prodId = parseInt(id);
+  const reviews = mockData.reviews.filter(r => r.product_id === prodId);
+  return res.status(200).json({ success: true, count: reviews.length, data: reviews });
+};
+
+// 8. Khách hàng gửi đánh giá mới kèm Body Fit Tags
+const createProductReview = async (req, res) => {
+  const { id } = req.params;
+  const prodId = parseInt(id);
+  const {
+    user_name,
+    rating,
+    color,
+    size,
+    height,
+    weight,
+    fit,
+    comment,
+    images
+  } = req.body;
+
+  if (!comment || !rating) {
+    return res.status(400).json({ success: false, message: 'Vui lòng chọn số sao và nhập nội dung đánh giá!' });
+  }
+
+  const newReview = {
+    id: Date.now(),
+    product_id: prodId,
+    user_name: user_name || req.user?.name || 'Khách hàng VibeBili',
+    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+    rating: Number(rating) || 5,
+    date: new Date().toISOString().split('T')[0],
+    color: color || 'Tiêu chuẩn',
+    size: size || 'Size M',
+    height: height || '1m60',
+    weight: weight || '50kg',
+    fit: fit || 'Chuẩn size',
+    comment,
+    images: Array.isArray(images) ? images : [],
+    helpful_count: 0
+  };
+
+  mockData.reviews.unshift(newReview);
+
+  return res.status(201).json({
+    success: true,
+    message: 'Gửi đánh giá thành công! Cảm ơn bạn đã đóng góp phản hồi quý báu.',
+    data: newReview
+  });
+};
+
 module.exports = {
   getAllProducts,
   getProductById,
   createProduct,
+  bulkCreateProducts,
   deleteProduct,
-  getCategories
+  getCategories,
+  getProductReviews,
+  createProductReview
 };

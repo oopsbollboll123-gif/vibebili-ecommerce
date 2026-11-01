@@ -242,17 +242,29 @@ const getMyOrders = async (req, res) => {
   }
 };
 
-// 4. Cập Nhật Trạng Thái Đơn Hàng (Seller / Admin)
+// 4. Cập Nhật Trạng Thái Đơn Hàng (Phân quyền bảo mật: Customer chỉ được hủy đơn khi Chờ xác nhận, Seller/Admin cập nhật quy trình)
 const updateOrderStatus = async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
+  const userRole = req.user?.role;
+  const userId = req.user?.id;
 
-  const validStatuses = ['Chờ xác nhận', 'Đang xử lý', 'Đang giao', 'Đã giao', 'Đã hủy'];
+  const validStatuses = ['Chờ xác nhận', 'Đang xử lý', 'Đã hẹn bưu tá', 'Đang giao', 'Đã giao', 'Đã hủy'];
   if (!validStatuses.includes(status)) {
     return res.status(400).json({
       success: false,
       message: `Trạng thái không hợp lệ! Cho phép: ${validStatuses.join(', ')}`
     });
+  }
+
+  // Kiểm tra phân quyền: Khách hàng chỉ được phép HỦY đơn nếu đơn hàng đang ở trạng thái 'Chờ xác nhận'
+  if (userRole === 'customer') {
+    if (status !== 'Đã hủy') {
+      return res.status(403).json({
+        success: false,
+        message: 'Bảo mật: Khách hàng chỉ có quyền yêu cầu Hủy đơn hàng, không được thay đổi trạng thái vận chuyển!'
+      });
+    }
   }
 
   try {
@@ -264,6 +276,13 @@ const updateOrderStatus = async (req, res) => {
   } catch (error) {
     const order = mockData.orders.find(o => o.id === parseInt(id) || o.order_code === id);
     if (order) {
+      if (userRole === 'customer' && order.status !== 'Chờ xác nhận') {
+        return res.status(400).json({
+          success: false,
+          message: 'Đơn hàng đã được Người Bán chuẩn bị hoặc đang giao, không thể tự hủy!'
+        });
+      }
+
       order.status = status;
       return res.status(200).json({
         success: true,
@@ -274,9 +293,95 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
+// 5. Hẹn Giờ Lấy Hàng & Đơn Vị Vận Chuyển (Dành cho Seller)
+const schedulePickup = async (req, res) => {
+  const { id } = req.params;
+  const { shipping_carrier = 'GHN', pickup_date, pickup_time_slot, note } = req.body;
+
+  if (!pickup_date || !pickup_time_slot) {
+    return res.status(400).json({
+      success: false,
+      message: 'Vui lòng chọn ngày và khung giờ để bưu tá đến kho lấy hàng!'
+    });
+  }
+
+  const prefix = shipping_carrier === 'GHTK' ? 'GHTK' : shipping_carrier === 'Viettel Post' ? 'VTP' : 'GHN';
+  const trackingCode = `${prefix}-VB-${Math.floor(100000 + Math.random() * 900000)}`;
+
+  try {
+    await db.query(
+      `UPDATE Orders 
+       SET status = 'Đã hẹn bưu tá', 
+           tracking_code = ?, 
+           carrier = ?, 
+           pickup_date = ?, 
+           pickup_time = ? 
+       WHERE id = ? OR order_code = ?`,
+      [trackingCode, shipping_carrier, pickup_date, pickup_time_slot, id, id]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Hẹn bưu tá ${shipping_carrier} lấy hàng thành công! Mã vận đơn: ${trackingCode}`,
+      data: { trackingCode, carrier: shipping_carrier, pickup_date, pickup_time_slot }
+    });
+  } catch (error) {
+    const order = mockData.orders.find(o => o.id === parseInt(id) || o.order_code === id);
+    if (order) {
+      order.status = 'Đã hẹn bưu tá';
+      order.shipping_carrier = shipping_carrier;
+      order.tracking_code = trackingCode;
+      order.pickup_date = pickup_date;
+      order.pickup_time_slot = pickup_time_slot;
+      order.pickup_note = note;
+
+      return res.status(200).json({
+        success: true,
+        message: `Hẹn bưu tá ${shipping_carrier} lấy hàng thành công! Mã vận đơn: ${trackingCode}`,
+        data: { trackingCode, carrier: shipping_carrier, pickup_date, pickup_time_slot }
+      });
+    }
+    return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng!' });
+  }
+};
+
+// 6. Khách hàng đổi địa chỉ nhận hàng (Chỉ cho phép khi đơn ở trạng thái 'Chờ xác nhận')
+const updateShippingAddress = async (req, res) => {
+  const { id } = req.params;
+  const { customer_name, customer_phone, shipping_address, city } = req.body;
+
+  if (!shipping_address || !customer_phone) {
+    return res.status(400).json({ success: false, message: 'Vui lòng nhập địa chỉ và số điện thoại nhận hàng mới!' });
+  }
+
+  try {
+    await db.query(
+      'UPDATE Orders SET customer_name = COALESCE(?, customer_name), customer_phone = ?, shipping_address = ?, city = COALESCE(?, city) WHERE (id = ? OR order_code = ?) AND status = "Chờ xác nhận"',
+      [customer_name, customer_phone, shipping_address, city, id, id]
+    );
+    return res.status(200).json({ success: true, message: 'Cập nhật địa chỉ nhận hàng thành công!' });
+  } catch (error) {
+    const order = mockData.orders.find(o => o.id === parseInt(id) || o.order_code === id);
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng!' });
+    }
+    if (order.status !== 'Chờ xác nhận') {
+      return res.status(400).json({ success: false, message: 'Đơn hàng đã được Người Bán chuẩn bị hoặc đang giao, không thể đổi địa chỉ!' });
+    }
+    if (customer_name) order.customer_name = customer_name;
+    order.customer_phone = customer_phone;
+    order.shipping_address = shipping_address;
+    if (city) order.city = city;
+
+    return res.status(200).json({ success: true, message: 'Cập nhật địa chỉ nhận hàng thành công!', data: order });
+  }
+};
+
 module.exports = {
   createOrder,
   getAllOrders,
   getMyOrders,
-  updateOrderStatus
+  updateOrderStatus,
+  schedulePickup,
+  updateShippingAddress
 };

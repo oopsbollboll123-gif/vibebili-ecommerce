@@ -4,7 +4,9 @@ const {
   createOrder,
   getAllOrders,
   getMyOrders,
-  updateOrderStatus
+  updateOrderStatus,
+  schedulePickup,
+  updateShippingAddress
 } = require('../controllers/orderController');
 const { authenticateToken, authorizeRoles } = require('../middleware/authMiddleware');
 
@@ -33,5 +35,11 @@ router.get('/', optionalAuth, getAllOrders);
 
 // Cập nhật trạng thái đơn hàng (Seller / Admin)
 router.put('/:id/status', optionalAuth, updateOrderStatus);
+
+// Hẹn giờ bưu tá lấy hàng (Seller)
+router.put('/:id/pickup', optionalAuth, schedulePickup);
+
+// Đổi địa chỉ nhận hàng (Khách hàng - chỉ khi đơn ở bước Chờ xác nhận)
+router.put('/:id/address', optionalAuth, updateShippingAddress);
 
 module.exports = router;
