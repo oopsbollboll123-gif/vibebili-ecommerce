@@ -131,293 +131,224 @@ function MainApp() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col font-sans antialiased">
-      {/* 1. Top Bar ưu đãi tối giản cao cấp */}
-      <div className="bg-neutral-950 text-white text-[11px] py-2 px-4 border-b border-white/10">
-        <div className="max-w-7xl mx-auto flex justify-between items-center tracking-wide">
-          <div className="hidden md:flex items-center space-x-1.5 text-gray-300">
-            <TruckIcon className="w-3.5 h-3.5 text-orange-400" />
-            <span>GIAO HỎA TỐC 2H TẠI TP.HCM & HÀ NỘI</span>
+    <div className="min-h-screen bg-vibe-surface text-vibe-ink flex flex-col font-sans antialiased">
+
+      {/* 1. Top Bar — Minimal announcement strip */}
+      <div className="bg-vibe-950 text-white text-2xs py-2 px-4">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="hidden md:flex items-center gap-1.5 text-vibe-400">
+            <TruckIcon className="w-3.5 h-3.5 text-vibe-accent" />
+            <span>Giao hỏa tốc 2h tại TP.HCM & Hà Nội</span>
           </div>
-          <div className="mx-auto flex items-center space-x-1.5 font-bold text-white">
-            <FireIcon className="w-3.5 h-3.5 text-red-500 fill-red-500" />
-            <span>VIBEBILI.VN — "BIẾN HÓA MỖI NGÀY, TRỌN VẸN PHONG CÁCH" — TẶNG VOUCHER 100K CHO BẠN MỚI</span>
+          <div className="flex items-center gap-1.5 font-semibold text-white mx-auto md:mx-0">
+            <FireIcon className="w-3.5 h-3.5 text-orange-400 fill-orange-400" />
+            <span>Tặng voucher 100K cho đơn đầu tiên — nhập email ở cuối trang</span>
           </div>
-          <div className="hidden md:flex items-center space-x-4 text-gray-300">
+          <div className="hidden md:flex items-center gap-4 text-vibe-400">
             <span className="hover:text-white transition cursor-pointer">Hotline: 1900 6868</span>
           </div>
         </div>
       </div>
 
-      {/* 2. Header chính sạch sẽ, tinh tế chuẩn Luxury E-commerce */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-sm transition-all">
-        <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between gap-4">
-          {/* Logo VibeBili.vn */}
-          <div 
+      {/* 2. Header — Sticky, clean, luxury */}
+      <header className="sticky top-0 z-40 glass border-b border-vibe-border shadow-sm transition-all">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 md:h-[72px] flex items-center justify-between gap-3 md:gap-5">
+
+          {/* Logo */}
+          <div
             onClick={() => { setCurrentView('home'); setSelectedCategory('all'); setSearchQuery(''); }}
             className="flex flex-col cursor-pointer select-none flex-shrink-0 group"
           >
-            <div className="text-2xl md:text-3xl font-black tracking-tighter uppercase leading-none text-gray-900">
-              VIBE<span className="text-orange-600 group-hover:text-orange-500 transition-colors">BILI</span><span className="text-base font-extrabold text-gray-400 lowercase">.vn</span>
+            <div className="text-2xl md:text-[1.75rem] font-black tracking-tight uppercase leading-none text-vibe-ink">
+              VIBE<span className="text-vibe-accent group-hover:text-vibe-accent-hover transition-colors">BILI</span>
+              <span className="text-base font-bold text-vibe-400 lowercase">.vn</span>
             </div>
-            <span className="text-[9px] font-semibold text-gray-400 tracking-wider hidden sm:block mt-0.5">
+            <span className="text-2xs font-medium text-vibe-subtle tracking-wide hidden sm:block mt-0.5 italic">
               Biến hóa mỗi ngày, trọn vẹn phong cách
             </span>
           </div>
 
-          {/* Thanh tìm kiếm trực quan có Live Auto-Complete Dropdown */}
-          <div ref={searchContainerRef} className="flex-1 max-w-xl mx-2 md:mx-6 relative">
+          {/* Search */}
+          <div ref={searchContainerRef} className="flex-1 max-w-lg mx-2 md:mx-4 relative">
             <form onSubmit={handleSearch} className="relative flex items-center">
-              <input 
-                type="text" 
-                placeholder="Tìm kiếm tóc giả, outfit nam nữ, combo Y2K..." 
+              <input
+                type="text"
+                placeholder="Tìm tóc giả, outfit, combo Y2K..."
                 value={searchQuery}
                 onFocus={() => setIsSearchFocused(true)}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setIsSearchFocused(true);
-                }}
-                className="w-full border border-gray-300 rounded-full py-2.5 pl-5 pr-24 text-xs md:text-sm focus:outline-none focus:border-black transition-all bg-gray-50 focus:bg-white"
+                onChange={(e) => { setSearchQuery(e.target.value); setIsSearchFocused(true); }}
+                className="w-full bg-vibe-50 border border-vibe-border rounded-full py-2.5 pl-4 pr-20 text-sm focus:outline-none focus:border-vibe-ink focus:bg-white transition-all placeholder:text-vibe-subtle"
               />
-              <button 
+              <button
                 type="submit"
-                aria-label="Tìm kiếm sản phẩm"
-                className="absolute right-1.5 bg-black text-white px-4 py-2 rounded-full text-xs font-bold hover:bg-neutral-800 transition flex items-center space-x-1.5 shadow-sm"
+                aria-label="Tìm kiếm"
+                className="absolute right-1.5 bg-vibe-ink text-white px-4 py-2 rounded-full text-xs font-semibold hover:bg-vibe-800 transition flex items-center gap-1.5"
               >
                 <SearchIcon className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Tìm</span>
               </button>
             </form>
 
-            {/* Live Search Autocomplete Dropdown */}
+            {/* Live Search Dropdown */}
             {isSearchFocused && searchQuery.trim() && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 overflow-hidden divide-y divide-gray-100 animate-fadeIn">
-                <div className="p-2.5 bg-gray-50 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-                  Gợi ý sản phẩm phù hợp ({liveSuggestions.length})
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-card-lg border border-vibe-border z-50 overflow-hidden divide-y divide-vibe-100 animate-slide-down">
+                <div className="px-3.5 py-2.5 bg-vibe-50 text-2xs font-bold text-vibe-muted uppercase tracking-wider">
+                  {liveSuggestions.length > 0 ? `${liveSuggestions.length} gợi ý` : 'Không tìm thấy'}
                 </div>
-
                 {liveSuggestions.length === 0 ? (
-                  <div className="p-4 text-xs text-gray-500 text-center">
-                    Không tìm thấy sản phẩm nào khớp với "{searchQuery}"
-                  </div>
+                  <div className="p-4 text-xs text-vibe-muted text-center">Không có sản phẩm khớp với "{searchQuery}"</div>
                 ) : (
                   liveSuggestions.map((prod) => (
                     <div
                       key={prod.id}
                       onClick={() => handleProductClick(prod.id)}
-                      className="p-3 hover:bg-gray-50 flex items-center space-x-3 cursor-pointer transition"
+                      className="p-3 hover:bg-vibe-50 flex items-center gap-3 cursor-pointer transition-colors"
                     >
-                      <img
-                        src={prod.main_image}
-                        alt={prod.name}
-                        className="w-11 h-11 object-cover rounded-xl border border-gray-200 bg-gray-100 flex-shrink-0"
-                      />
+                      <img src={prod.main_image} alt={prod.name} className="w-10 h-10 object-cover rounded-xl border border-vibe-border bg-vibe-100 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-gray-900 truncate">{prod.name}</p>
-                        <p className="text-[10px] text-gray-400 mt-0.5">{prod.category_name}</p>
+                        <p className="text-xs font-semibold text-vibe-ink truncate">{prod.name}</p>
+                        <p className="text-2xs text-vibe-subtle mt-0.5">{prod.category_name}</p>
                       </div>
-                      <span className="text-xs font-black text-red-600 flex-shrink-0">
-                        {(prod.price || 299000).toLocaleString()} đ
-                      </span>
+                      <span className="text-sm font-bold text-vibe-accent flex-shrink-0">{(prod.price || 299000).toLocaleString()}đ</span>
                     </div>
                   ))
                 )}
-
-                <div
-                  onClick={() => handleSearch()}
-                  className="p-3 text-center text-xs font-bold text-orange-600 hover:bg-orange-50 cursor-pointer transition"
-                >
+                <div onClick={() => handleSearch()} className="px-4 py-3 text-center text-xs font-semibold text-vibe-accent hover:bg-vibe-accent-light cursor-pointer transition-colors">
                   Xem tất cả kết quả cho "{searchQuery}" →
                 </div>
               </div>
             )}
           </div>
 
-          {/* User Actions: Wishlist, Orders, User Account & Cart */}
-          <div className="flex items-center space-x-2 md:space-x-3 text-xs font-semibold flex-shrink-0">
-            {/* Nút Yêu thích (Wishlist Heart) */}
+          {/* Actions */}
+          <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
+            {/* Wishlist */}
             <button
               onClick={() => { setCurrentView('wishlist'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              className={`inline-flex items-center space-x-1.5 px-3 py-2 rounded-full font-bold text-xs transition border ${
+              className={`relative inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold transition-all border ${
                 currentView === 'wishlist'
-                  ? 'bg-red-50 text-red-600 border-red-300'
-                  : 'bg-white text-gray-700 border-gray-200 hover:border-black'
+                  ? 'bg-red-50 text-red-600 border-red-200'
+                  : 'bg-transparent text-vibe-700 border-vibe-border hover:border-vibe-400 hover:bg-white'
               }`}
-              title="Xem danh sách sản phẩm đã thả tim"
+              title="Danh sách yêu thích"
             >
-              <span>❤️</span>
-              <span className="hidden sm:inline">Yêu thích</span>
+              <span className="text-sm leading-none">❤️</span>
+              <span className="hidden md:inline">Yêu thích</span>
               {totalWishlist > 0 && (
-                <span className="bg-red-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full ml-0.5">
-                  {totalWishlist}
-                </span>
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-2xs font-black w-4 h-4 rounded-full flex items-center justify-center">{totalWishlist}</span>
               )}
             </button>
 
-            {/* Nút Đơn Mua Của Tôi (Customer Orders) */}
+            {/* Orders */}
             <button
               onClick={() => { setCurrentView('orders'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              className={`inline-flex items-center space-x-1.5 px-3 py-2 rounded-full font-bold text-xs transition border ${
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold transition-all border ${
                 currentView === 'orders'
-                  ? 'bg-black text-white border-black'
-                  : 'bg-white text-gray-700 border-gray-200 hover:border-black'
+                  ? 'bg-vibe-ink text-white border-vibe-ink'
+                  : 'bg-transparent text-vibe-700 border-vibe-border hover:border-vibe-400 hover:bg-white'
               }`}
-              title="Xem lịch sử và trạng thái đơn hàng của bạn"
+              title="Đơn mua của tôi"
             >
-              <span>🧾</span>
-              <span className="hidden sm:inline">Đơn mua</span>
+              <span className="text-sm leading-none">🧾</span>
+              <span className="hidden md:inline">Đơn mua</span>
             </button>
 
-            {/* Shortcut Quản Trị Hệ Thống dành riêng cho Admin */}
+            {/* Admin Portal — chỉ hiện khi là admin */}
             {isAdmin && (
               <button
                 onClick={() => { setCurrentView('admin'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                className={`inline-flex items-center space-x-1 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full font-bold text-xs transition border ${
+                className={`inline-flex items-center gap-1 px-2.5 sm:px-3 py-2 rounded-full text-xs font-semibold transition-all border ${
                   currentView === 'admin'
-                    ? 'bg-purple-900 text-white border-purple-900 shadow'
-                    : 'bg-purple-50 text-purple-900 border-purple-200 hover:bg-purple-100'
+                    ? 'bg-purple-700 text-white border-purple-700'
+                    : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
                 }`}
-                title="Vào hệ thống Quản Trị Trung Tâm Admin"
+                title="Quản Trị Hệ Thống"
               >
                 <span>🛡️</span>
-                <span className="hidden md:inline">Admin Portal</span>
+                <span className="hidden md:inline">Admin</span>
               </button>
             )}
 
-            {/* User Account / Đăng Nhập */}
+            {/* Account */}
             {isAuthenticated ? (
-              <div className="flex items-center space-x-2">
-                <div 
+              <div className="flex items-center gap-1.5">
+                <div
                   onClick={() => { setCurrentView('login'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                  className="text-right hidden sm:block cursor-pointer group"
-                  title="Xem hồ sơ & quản lý tài khoản"
+                  className="hidden sm:flex flex-col items-end cursor-pointer group"
+                  title="Tài khoản của tôi"
                 >
-                  <div className="font-bold text-gray-900 group-hover:text-orange-600 transition truncate max-w-[100px]">{user.name}</div>
-                  <span className={`text-[9px] uppercase font-extrabold px-1.5 py-0.2 rounded tracking-wider ${
-                    isAdmin ? 'bg-purple-100 text-purple-800' :
-                    isSeller ? 'bg-orange-100 text-orange-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {user.role}
-                  </span>
+                  <span className="text-xs font-semibold text-vibe-ink group-hover:text-vibe-accent transition-colors truncate max-w-[96px]">{user.name}</span>
+                  <span className={`text-2xs font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                    isAdmin ? 'bg-purple-100 text-purple-700' :
+                    isSeller ? 'bg-orange-100 text-orange-700' :
+                    'bg-vibe-100 text-vibe-600'
+                  }`}>{user.role}</span>
                 </div>
-                <button 
+                <button
                   onClick={() => {
                     logout();
-                    setLogoutToast('Bạn đã đăng xuất tài khoản an toàn!');
-                    setTimeout(() => setLogoutToast(''), 4000);
+                    setLogoutToast('Đã đăng xuất thành công!');
+                    setTimeout(() => setLogoutToast(''), 3500);
                     setCurrentView('home');
                   }}
-                  className="text-red-500 hover:text-red-700 text-xs font-semibold px-2 py-1 rounded hover:bg-red-50 transition"
-                  title="Đăng xuất khỏi hệ thống"
+                  className="text-vibe-muted hover:text-red-600 text-xs font-medium px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                  title="Đăng xuất"
                 >
                   Thoát
                 </button>
               </div>
             ) : (
-              <button 
+              <button
                 onClick={() => { setAuthInitialMode('login'); setCurrentView('login'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                className="inline-flex items-center space-x-1.5 border border-gray-300 hover:border-black px-3.5 py-2 rounded-full font-bold transition text-gray-800 hover:bg-gray-50"
+                className="inline-flex items-center gap-1.5 border border-vibe-border hover:border-vibe-ink px-3.5 py-2 rounded-full text-xs font-semibold transition-all text-vibe-ink hover:bg-vibe-50"
               >
                 <UserIcon className="w-4 h-4" />
                 <span className="hidden sm:inline">Đăng Nhập</span>
               </button>
             )}
 
-            {/* Nút Giỏ Hàng trượt */}
-            <button 
+            {/* Cart */}
+            <button
               onClick={openCart}
               aria-label="Mở giỏ hàng"
-              className="bg-black text-white min-h-[40px] px-3.5 md:px-5 py-2 rounded-full hover:bg-neutral-800 transition shadow flex items-center space-x-2 focus-visible:ring-2 focus-visible:ring-black"
+              className="relative bg-vibe-ink text-white h-10 px-4 md:px-5 rounded-full hover:bg-vibe-800 transition-colors flex items-center gap-2 shadow-btn"
             >
-              <ShoppingBagIcon className="w-4 h-4 text-white" />
-              <span className="hidden sm:inline font-bold">Giỏ hàng</span>
-              <span className="bg-orange-600 text-white text-[11px] px-2 py-0.5 rounded-full font-black">
+              <ShoppingBagIcon className="w-4 h-4" />
+              <span className="hidden sm:inline text-sm font-semibold">Giỏ</span>
+              <span className="bg-vibe-accent text-white text-2xs font-black px-1.5 py-0.5 rounded-full min-w-[20px] text-center leading-none">
                 {totalCount}
               </span>
             </button>
           </div>
         </div>
 
-        {/* Navigation Bar Dành Riêng Cho Khách Mua Hàng (Ẩn hoàn toàn Kênh người bán & Admin) */}
-        <nav className="border-t border-gray-100 bg-white">
-          <ul className="max-w-7xl mx-auto px-4 flex space-x-6 md:space-x-8 text-xs font-bold uppercase tracking-wider py-3 overflow-x-auto no-scrollbar">
-            <li 
-              onClick={() => { setCurrentView('home'); setSelectedCategory('all'); setSearchQuery(''); }}
-              className={`cursor-pointer whitespace-nowrap transition-colors pb-1 ${
-                currentView === 'home' && selectedCategory === 'all' 
-                  ? 'text-black border-b-2 border-black font-black' 
-                  : 'text-gray-600 hover:text-black'
-              }`}
-            >
-              Trang Chủ
-            </li>
-            <li 
-              onClick={() => { setCurrentView('home'); setSelectedCategory('Tóc Giả Cao Cấp'); }}
-              className={`cursor-pointer whitespace-nowrap transition-colors pb-1 ${
-                currentView === 'home' && selectedCategory === 'Tóc Giả Cao Cấp' 
-                  ? 'text-black border-b-2 border-black font-black' 
-                  : 'text-gray-600 hover:text-black'
-              }`}
-            >
-              Tóc Giả Cao Cấp
-            </li>
-            <li 
-              onClick={() => { setCurrentView('home'); setSelectedCategory('Thời Trang Nữ'); }}
-              className={`cursor-pointer whitespace-nowrap transition-colors pb-1 ${
-                currentView === 'home' && selectedCategory === 'Thời Trang Nữ' 
-                  ? 'text-black border-b-2 border-black font-black' 
-                  : 'text-gray-600 hover:text-black'
-              }`}
-            >
-              Thời Trang Nữ
-            </li>
-            <li 
-              onClick={() => { setCurrentView('home'); setSelectedCategory('Thời Trang Nam'); }}
-              className={`cursor-pointer whitespace-nowrap transition-colors pb-1 ${
-                currentView === 'home' && selectedCategory === 'Thời Trang Nam' 
-                  ? 'text-black border-b-2 border-black font-black' 
-                  : 'text-gray-600 hover:text-black'
-              }`}
-            >
-              Thời Trang Nam 👔
-            </li>
-            <li 
-              onClick={() => setCurrentView('combo')}
-              className={`cursor-pointer whitespace-nowrap transition-colors pb-1 flex items-center space-x-1 ${
-                currentView === 'combo' 
-                  ? 'text-black border-b-2 border-black font-black' 
-                  : 'text-gray-600 hover:text-black'
-              }`}
-            >
-              <SparklesIcon className="w-3.5 h-3.5 text-orange-500" />
-              <span>Outfit x Hairstyle Combo</span>
-            </li>
-            <li 
-              onClick={() => setCurrentView('try-on')}
-              className={`cursor-pointer whitespace-nowrap transition-colors pb-1 flex items-center space-x-1.5 ${
-                currentView === 'try-on' 
-                  ? 'text-black border-b-2 border-black font-black' 
-                  : 'text-gray-600 hover:text-black'
-              }`}
-            >
-              <span>🪞</span>
-              <span>Phòng Thử Đồ AI 2-in-1</span>
-              <span className="bg-red-600 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase ml-0.5">
-                HOT
-              </span>
-            </li>
-            <li 
-              onClick={() => { setCurrentView('spa'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              className={`cursor-pointer whitespace-nowrap transition-colors pb-1 flex items-center space-x-1 ${
-                currentView === 'spa' 
-                  ? 'text-black border-b-2 border-black font-black' 
-                  : 'text-gray-600 hover:text-black'
-              }`}
-            >
-              <span>✨</span>
-              <span>Spa & Phục Hồi Tóc Giả</span>
-            </li>
+        {/* Navigation */}
+        <nav className="border-t border-vibe-100 bg-white/90">
+          <ul className="max-w-7xl mx-auto px-4 sm:px-6 flex gap-0 overflow-x-auto no-scrollbar py-0">
+            {[
+              { label: 'Trang Chủ', action: () => { setCurrentView('home'); setSelectedCategory('all'); setSearchQuery(''); }, active: currentView === 'home' && selectedCategory === 'all' },
+              { label: 'Tóc Giả Cao Cấp', action: () => { setCurrentView('home'); setSelectedCategory('Tóc Giả Cao Cấp'); }, active: currentView === 'home' && selectedCategory === 'Tóc Giả Cao Cấp' },
+              { label: 'Thời Trang Nữ', action: () => { setCurrentView('home'); setSelectedCategory('Thời Trang Nữ'); }, active: currentView === 'home' && selectedCategory === 'Thời Trang Nữ' },
+              { label: 'Thời Trang Nam 👔', action: () => { setCurrentView('home'); setSelectedCategory('Thời Trang Nam'); }, active: currentView === 'home' && selectedCategory === 'Thời Trang Nam' },
+              { label: '✨ Outfit Combo', action: () => setCurrentView('combo'), active: currentView === 'combo' },
+              { label: '🪞 Thử Đồ AI', action: () => setCurrentView('try-on'), active: currentView === 'try-on', badge: 'HOT' },
+              { label: '💆 Spa Tóc', action: () => { setCurrentView('spa'); window.scrollTo({ top: 0, behavior: 'smooth' }); }, active: currentView === 'spa' },
+            ].map((item) => (
+              <li
+                key={item.label}
+                onClick={item.action}
+                className={`relative cursor-pointer whitespace-nowrap text-xs font-semibold tracking-wide py-3 px-3.5 border-b-2 transition-all flex items-center gap-1.5 ${
+                  item.active
+                    ? 'text-vibe-ink border-vibe-ink'
+                    : 'text-vibe-500 border-transparent hover:text-vibe-ink hover:border-vibe-300'
+                }`}
+              >
+                {item.label}
+                {item.badge && (
+                  <span className="bg-red-600 text-white text-2xs font-black px-1.5 py-0.5 rounded-full uppercase leading-none">{item.badge}</span>
+                )}
+              </li>
+            ))}
           </ul>
         </nav>
       </header>
@@ -425,76 +356,103 @@ function MainApp() {
       {/* 3. Main Content Views */}
       <div className="flex-1">
         {currentView === 'home' && (
-          <main className="max-w-7xl mx-auto px-4 py-8">
-            {/* Hero Banner phong cách High-End Minimalist */}
-            <div className="relative rounded-3xl overflow-hidden mb-10 bg-neutral-900 text-white p-8 md:p-12 shadow-xl flex flex-col md:flex-row items-center justify-between">
-              <div className="space-y-4 max-w-xl z-10">
-                <span className="inline-flex items-center space-x-1.5 bg-orange-600 text-white text-[10px] font-black uppercase px-3 py-1 rounded-full tracking-wider">
-                  <SparklesIcon className="w-3.5 h-3.5 text-white" />
-                  <span>VibeBili.vn • Bộ Sưu Tập Thời Trang & Tóc 2026</span>
-                </span>
-                <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tight leading-none">
-                  VIBE<span className="text-orange-500">BILI</span>.VN <br />
-                  <span className="text-gray-200 text-lg md:text-2xl font-bold normal-case tracking-normal block mt-2">
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 md:py-10">
+
+            {/* ── Hero Banner ── Clean, editorial style */}
+            <div className="relative rounded-3xl overflow-hidden mb-10 bg-vibe-950 text-white shadow-card-lg">
+              <div className="flex flex-col md:flex-row items-center justify-between p-8 md:p-12 lg:p-16 gap-8">
+                <div className="space-y-5 max-w-lg z-10">
+                  <div className="inline-flex items-center gap-2 bg-white/10 text-white text-2xs font-semibold uppercase px-3.5 py-1.5 rounded-full tracking-widest border border-white/20">
+                    <SparklesIcon className="w-3.5 h-3.5 text-vibe-accent" />
+                    <span>Bộ Sưu Tập 2026 — VibeBili.vn</span>
+                  </div>
+                  <h1 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight leading-[1.05]">
+                    VIBE<span className="text-vibe-accent">BILI</span>
+                    <span className="text-2xl md:text-3xl font-bold text-vibe-400 lowercase">.vn</span>
+                  </h1>
+                  <p className="text-vibe-300 text-sm md:text-base leading-relaxed italic font-light">
                     "Biến hóa mỗi ngày, trọn vẹn phong cách"
-                  </span>
-                </h1>
-                <p className="text-gray-300 text-xs md:text-sm leading-relaxed">
-                  Sàn TMĐT chuyên biệt kết hợp Tóc giả cao cấp chịu nhiệt 180°C cùng những outfit thịnh hành nhất cho Nam & Nữ. Thử đồ trực tiếp lên Avatar cùng công nghệ AI 2-in-1.
-                </p>
-                <div className="pt-2 flex flex-wrap gap-3">
-                  <button 
-                    onClick={() => setCurrentView('try-on')}
-                    className="bg-white hover:bg-gray-100 text-black font-extrabold px-6 py-3 rounded-full text-xs uppercase tracking-wider transition shadow flex items-center space-x-1.5"
-                  >
-                    <span>🪞 Phòng Thử Đồ AI 2-in-1</span>
-                  </button>
-                  <button 
-                    onClick={() => { setSelectedCategory('Thời Trang Nam'); window.scrollTo({ top: 450, behavior: 'smooth' }); }}
-                    className="bg-transparent border border-white hover:bg-white/10 text-white font-extrabold px-6 py-3 rounded-full text-xs uppercase tracking-wider transition flex items-center space-x-1.5"
-                  >
-                    <span>👔 Khám Phá Thời Trang Nam</span>
-                  </button>
+                  </p>
+                  <p className="text-vibe-400 text-xs md:text-sm leading-relaxed">
+                    Tóc giả cao cấp chịu nhiệt 180°C kết hợp outfit xu hướng Nam & Nữ.
+                    Thử đồ trực tiếp với công nghệ AI 2-in-1 độc quyền.
+                  </p>
+                  <div className="flex flex-wrap gap-3 pt-1">
+                    <button
+                      onClick={() => setCurrentView('try-on')}
+                      className="bg-white text-vibe-ink hover:bg-vibe-100 font-bold px-6 py-3 rounded-full text-sm transition-colors shadow-btn flex items-center gap-2"
+                    >
+                      <span>🪞</span> Thử Đồ AI 2-in-1
+                    </button>
+                    <button
+                      onClick={() => { setSelectedCategory('Thời Trang Nam'); window.scrollTo({ top: 450, behavior: 'smooth' }); }}
+                      className="bg-transparent border border-white/30 hover:border-white hover:bg-white/10 text-white font-semibold px-6 py-3 rounded-full text-sm transition-all flex items-center gap-2"
+                    >
+                      <span>👔</span> Thời Trang Nam
+                    </button>
+                  </div>
+                </div>
+
+                <div className="hidden lg:flex gap-4 z-10 flex-shrink-0">
+                  <img
+                    src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=360&q=80"
+                    alt="VibeBili Fashion"
+                    className="w-56 h-72 object-cover rounded-2xl shadow-card-lg border border-white/10 -rotate-2"
+                  />
+                  <img
+                    src="https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=280&q=80"
+                    alt="VibeBili Tóc giả"
+                    className="w-44 h-56 object-cover rounded-2xl shadow-card-lg border border-white/10 mt-10 rotate-1"
+                  />
                 </div>
               </div>
 
-              <div className="hidden lg:block relative z-10">
-                <img 
-                  src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=500&q=80" 
-                  alt="VibeBili Fashion" 
-                  className="w-72 h-80 object-cover rounded-2xl shadow-2xl border-2 border-white/10"
-                />
-              </div>
+              {/* Decorative accent */}
+              <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-vibe-accent/40 to-transparent" />
             </div>
 
-            {/* Bộ lọc Danh mục sản phẩm */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-gray-200 mb-6 gap-3">
+            {/* ── Feature Pills ── */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-10">
+              {[
+                { icon: '🚀', title: 'Giao hỏa tốc 2h', sub: 'TP.HCM & Hà Nội' },
+                { icon: '🔄', title: 'Đổi trả 15 ngày', sub: 'Miễn phí đổi size' },
+                { icon: '🛡️', title: 'Hàng kiểm duyệt', sub: 'Đảm bảo chất lượng' },
+                { icon: '💳', title: 'Thanh toán an toàn', sub: 'Mã hóa SSL 256-bit' },
+              ].map((f) => (
+                <div key={f.title} className="bg-white rounded-2xl border border-vibe-border px-4 py-3.5 flex items-center gap-3 shadow-card">
+                  <span className="text-2xl flex-shrink-0">{f.icon}</span>
+                  <div>
+                    <p className="text-xs font-bold text-vibe-ink">{f.title}</p>
+                    <p className="text-2xs text-vibe-muted">{f.sub}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* ── Category Filter & Product Grid ── */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 mb-6 gap-3 border-b border-vibe-border">
               <div>
-                <h2 className="text-lg md:text-xl font-black uppercase tracking-tight text-gray-900 flex items-center space-x-2">
-                  <span>✨ {selectedCategory === 'all' ? 'Tất Cả Sản Phẩm Xu Hướng' : selectedCategory}</span>
-                  <span className="text-xs font-normal text-gray-400 normal-case">
-                    ({products.length} sản phẩm)
-                  </span>
+                <h2 className="text-lg font-bold text-vibe-ink">
+                  {selectedCategory === 'all' ? 'Tất Cả Sản Phẩm' : selectedCategory}
+                  <span className="text-sm font-normal text-vibe-muted ml-2">({products.length})</span>
                 </h2>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Cam kết chất lượng cao cấp • Đồng kiểm tra hàng khi nhận
-                </p>
+                <p className="text-xs text-vibe-subtle mt-0.5">Cam kết chất lượng • Kiểm hàng khi nhận</p>
               </div>
 
-              <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar py-1">
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
                 {[
                   { key: 'all', label: 'Tất cả' },
-                  { key: 'Tóc Giả Cao Cấp', label: 'Tóc Giả' },
-                  { key: 'Thời Trang Nữ', label: 'Thời Trang Nữ' },
-                  { key: 'Thời Trang Nam', label: 'Thời Trang Nam' }
+                  { key: 'Tóc Giả Cao Cấp', label: '💇 Tóc Giả' },
+                  { key: 'Thời Trang Nữ', label: '👗 Thời Trang Nữ' },
+                  { key: 'Thời Trang Nam', label: '👔 Thời Trang Nam' },
                 ].map((cat) => (
                   <button
                     key={cat.key}
                     onClick={() => setSelectedCategory(cat.key)}
-                    className={`text-xs px-4 py-2 rounded-full font-bold transition whitespace-nowrap ${
+                    className={`text-xs px-4 py-2 rounded-full font-semibold transition-all whitespace-nowrap ${
                       selectedCategory === cat.key
-                        ? 'bg-black text-white shadow-sm'
-                        : 'bg-white border border-gray-200 text-gray-700 hover:border-black'
+                        ? 'bg-vibe-ink text-white shadow-btn'
+                        : 'bg-white border border-vibe-border text-vibe-700 hover:border-vibe-ink hover:text-vibe-ink'
                     }`}
                   >
                     {cat.label}
@@ -503,102 +461,102 @@ function MainApp() {
               </div>
             </div>
 
-            {/* Lưới sản phẩm */}
+            {/* Product Grid */}
             {loading ? (
-              <div className="text-center py-20 text-gray-500 space-y-2">
-                <div className="inline-block animate-spin w-8 h-8 border-3 border-gray-900 border-t-transparent rounded-full"></div>
-                <p className="text-xs font-bold uppercase tracking-wider">Đang tải danh mục sản phẩm VibeBili...</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div key={i} className="bg-white rounded-2xl overflow-hidden border border-vibe-border shadow-card">
+                    <div className="h-56 skeleton" />
+                    <div className="p-3 space-y-2">
+                      <div className="h-3 skeleton rounded w-3/4" />
+                      <div className="h-3 skeleton rounded w-full" />
+                      <div className="h-3 skeleton rounded w-1/2" />
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : products.length === 0 ? (
-              <div className="text-center py-20 bg-white rounded-3xl border border-gray-200 p-8 shadow-sm">
-                <p className="text-gray-700 font-bold mb-2">Không tìm thấy sản phẩm nào phù hợp.</p>
-                <button 
+              <div className="text-center py-20 bg-white rounded-3xl border border-vibe-border shadow-card px-8">
+                <div className="text-5xl mb-4">🔍</div>
+                <p className="text-vibe-ink font-semibold mb-1">Không tìm thấy sản phẩm nào</p>
+                <p className="text-vibe-muted text-sm mb-5">Thử tìm kiếm với từ khóa khác hoặc xem tất cả sản phẩm</p>
+                <button
                   onClick={() => { setSelectedCategory('all'); setSearchQuery(''); loadProducts(); }}
-                  className="bg-black text-white text-xs px-6 py-2.5 rounded-full font-bold hover:bg-neutral-800 transition"
+                  className="bg-vibe-ink text-white text-sm px-6 py-2.5 rounded-full font-semibold hover:bg-vibe-800 transition-colors"
                 >
-                  Tải lại danh sách đầy đủ
+                  Xem tất cả sản phẩm
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
                 {products.map((product) => {
                   const wishlisted = isWishlisted(product.id);
                   return (
-                    <div 
-                      key={product.id} 
+                    <div
+                      key={product.id}
                       onClick={() => handleProductClick(product.id)}
-                      className="bg-white border border-gray-200 rounded-2xl overflow-hidden group hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between"
+                      className="product-card group"
                     >
-                      <div>
-                        {/* Ảnh sản phẩm + Nút Thả tim */}
-                        <div className="h-64 bg-gray-100 relative overflow-hidden">
-                          <img 
-                            src={product.main_image || 'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=600&q=80'} 
-                            alt={product.name} 
-                            loading="lazy"
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                          />
-                          <span className="absolute top-2 left-2 bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded shadow">
-                            HOT -30%
+                      {/* Product Image */}
+                      <div className="relative overflow-hidden bg-vibe-100 aspect-product">
+                        <img
+                          src={product.main_image || 'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=600&q=80'}
+                          alt={product.name}
+                          loading="lazy"
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                        />
+                        {/* Sale badge */}
+                        <span className="badge-sale absolute top-2.5 left-2.5">−30%</span>
+
+                        {/* Wishlist button */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleWishlist(product); }}
+                          className={`absolute top-2.5 right-2.5 w-8 h-8 rounded-full flex items-center justify-center shadow-card transition-transform active:scale-90 ${
+                            wishlisted
+                              ? 'bg-red-50 border border-red-200'
+                              : 'bg-white/90 hover:bg-white border border-transparent hover:border-vibe-200'
+                          }`}
+                          title={wishlisted ? 'Đã yêu thích' : 'Yêu thích'}
+                        >
+                          <span className="text-sm leading-none">{wishlisted ? '❤️' : '🤍'}</span>
+                        </button>
+
+                        {product.is_combo && (
+                          <span className="badge-combo absolute bottom-2.5 left-2.5">
+                            <SparklesIcon className="w-3 h-3" /> COMBO
                           </span>
-
-                          {/* Nút Thả tim (Wishlist Heart) trên Card */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleWishlist(product);
-                            }}
-                            className={`absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center shadow-md transition-transform active:scale-90 ${
-                              wishlisted ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-white/90 text-gray-400 hover:text-red-500 hover:bg-white'
-                            }`}
-                            title={wishlisted ? 'Đã yêu thích' : 'Thả tim'}
-                          >
-                            <span className="text-sm leading-none">{wishlisted ? '❤️' : '🤍'}</span>
-                          </button>
-
-                          {product.is_combo && (
-                            <span className="absolute bottom-2 left-2 bg-black/85 text-orange-400 text-[9px] font-bold px-2 py-0.5 rounded flex items-center space-x-1">
-                              <SparklesIcon className="w-2.5 h-2.5" />
-                              <span>COMBO</span>
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Thông tin */}
-                        <div className="p-3">
-                          <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">
-                            {product.category_name || 'Tóc Giả & Thời Trang'}
-                          </p>
-                          <h3 className="text-xs font-semibold line-clamp-2 h-8 text-gray-900 group-hover:text-orange-600 transition-colors">
-                            {product.name}
-                          </h3>
-                          <div className="flex items-center space-x-1 mt-1 text-[11px] text-gray-600 font-medium">
-                            <StarIcon className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                            <span className="font-bold text-gray-800">{product.rating || 5.0}</span>
-                            <span className="text-gray-400">• Đã bán {product.sold_count || '500+'}</span>
-                          </div>
-                        </div>
+                        )}
                       </div>
 
-                      <div className="p-3 pt-0 border-t border-gray-50 flex items-center justify-between mt-2">
-                        <div>
-                          <span className="text-sm font-black text-red-600 block">
-                            {(product.price || 299000).toLocaleString()} đ
-                          </span>
-                          {product.original_price && (
-                            <span className="text-[10px] text-gray-400 line-through">
-                              {Number(product.original_price).toLocaleString()} đ
-                            </span>
-                          )}
+                      {/* Product Info */}
+                      <div className="p-3 flex flex-col flex-1">
+                        <p className="text-2xs font-semibold text-vibe-subtle uppercase tracking-wide mb-1">
+                          {product.category_name || 'Tóc Giả & Thời Trang'}
+                        </p>
+                        <h3 className="text-xs font-semibold line-clamp-2 text-vibe-ink group-hover:text-vibe-accent transition-colors leading-snug mb-2 flex-1">
+                          {product.name}
+                        </h3>
+                        <div className="flex items-center gap-1 text-2xs text-vibe-muted mb-2">
+                          <StarIcon className="w-3.5 h-3.5 text-amber-400 fill-amber-400 flex-shrink-0" />
+                          <span className="font-semibold text-vibe-700">{product.rating || 5.0}</span>
+                          <span>• {product.sold_count || '500+'} đã bán</span>
                         </div>
-                        <button 
-                          onClick={(e) => handleQuickAddToCart(e, product)}
-                          aria-label={`Thêm ${product.name} vào giỏ`}
-                          className="bg-black hover:bg-neutral-800 text-white p-2.5 rounded-full transition shadow focus-visible:ring-2 focus-visible:ring-black min-w-[36px] min-h-[36px] flex items-center justify-center"
-                          title="Thêm nhanh vào giỏ"
-                        >
-                          <ShoppingBagIcon className="w-4 h-4 text-white" />
-                        </button>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-vibe-50">
+                          <div>
+                            <span className="text-sm font-black text-vibe-accent block">{(product.price || 299000).toLocaleString()}đ</span>
+                            {product.original_price && (
+                              <span className="text-2xs text-vibe-subtle line-through">{Number(product.original_price).toLocaleString()}đ</span>
+                            )}
+                          </div>
+                          <button
+                            onClick={(e) => handleQuickAddToCart(e, product)}
+                            aria-label={`Thêm ${product.name} vào giỏ`}
+                            className="bg-vibe-ink hover:bg-vibe-800 text-white p-2 rounded-full transition-colors shadow-btn min-w-[34px] min-h-[34px] flex items-center justify-center"
+                          >
+                            <ShoppingBagIcon className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -702,126 +660,125 @@ function MainApp() {
       </div>
 
       {/* Giỏ Hàng Trượt Ngang (CartDrawer) */}
-      <CartDrawer 
+      <CartDrawer
         onNavigateCheckout={() => setCurrentView('checkout')}
       />
 
-      {/* Thông báo Đăng Xuất An Toàn */}
+      {/* Thông báo Đăng Xuất */}
       {logoutToast && (
-        <div className="fixed bottom-6 right-6 z-50 bg-neutral-900 text-white px-5 py-3 rounded-full text-xs font-bold shadow-2xl flex items-center space-x-2 border border-white/20 animate-bounce">
+        <div className="toast">
           <span>✅</span>
           <span>{logoutToast}</span>
         </div>
       )}
 
-      {/* MODAL CHÚC MỪNG NHẬN VOUCHER 100K TỪ FOOTER */}
+      {/* MODAL CHÚC MỪNG NHẬN VOUCHER 100K */}
       {newsletterVoucherPopup && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 text-center shadow-2xl border border-gray-200">
-            <div className="w-16 h-16 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center shadow-card-lg border border-vibe-border animate-scale-in">
+            <div className="w-14 h-14 bg-vibe-accent-light text-vibe-accent rounded-full flex items-center justify-center mx-auto mb-4 text-2xl shadow-sm">
               🎉
             </div>
-            <h3 className="text-xl font-black text-gray-900 uppercase">
-              Chúc Mừng Bạn!
-            </h3>
-            <p className="text-xs text-gray-600 mt-2 mb-4 leading-relaxed">
-              Bạn đã đăng ký nhận bản tin thành công. VibeBili tặng bạn mã giảm giá <strong>100.000 đ</strong> cho đơn hàng từ 300.000 đ:
+            <h3 className="text-lg font-bold text-vibe-ink">Chúc mừng!</h3>
+            <p className="text-sm text-vibe-muted mt-2 mb-4 leading-relaxed">
+              Đăng ký thành công! VibeBili tặng bạn mã giảm <strong className="text-vibe-ink">100.000đ</strong> cho đơn từ 300.000đ:
             </p>
-
-            <div className="bg-orange-50 border-2 border-dashed border-orange-300 rounded-2xl p-4 mb-5">
-              <span className="text-xs font-bold text-orange-800 uppercase block mb-1">Mã Voucher Của Bạn</span>
-              <span className="text-2xl font-black text-orange-600 font-mono tracking-widest select-all">VIBENEW100</span>
-              <p className="text-[11px] text-gray-500 mt-1">Mã đã được tự động kích hoạt vào giỏ hàng của bạn!</p>
+            <div className="bg-vibe-accent-light border-2 border-dashed border-vibe-accent/40 rounded-2xl p-4 mb-5">
+              <span className="text-2xs font-bold text-vibe-accent/70 uppercase block mb-1">Mã voucher của bạn</span>
+              <span className="text-2xl font-black text-vibe-accent font-mono tracking-widest select-all">VIBENEW100</span>
+              <p className="text-xs text-vibe-muted mt-1">Mã đã được kích hoạt vào giỏ hàng!</p>
             </div>
-
             <button
               onClick={() => setNewsletterVoucherPopup(false)}
-              className="w-full bg-black hover:bg-neutral-800 text-white py-3 rounded-full text-xs font-bold uppercase tracking-wider transition"
+              className="w-full bg-vibe-ink hover:bg-vibe-800 text-white py-3 rounded-full text-sm font-semibold transition-colors"
             >
-              Bắt Đầu Mua Sắm Ngay
+              Bắt Đầu Mua Sắm →
             </button>
           </div>
         </div>
       )}
 
-      {/* 4. Footer cao cấp VibeBili.vn */}
-      <footer className="bg-neutral-950 text-white text-xs mt-20 border-t border-neutral-800">
-        <div className="max-w-7xl mx-auto px-4 py-12 grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div className="space-y-3">
-            <div className="text-xl font-black uppercase tracking-wider">
-              VIBE<span className="text-orange-500">BILI</span><span className="text-sm text-gray-400 lowercase">.vn</span>
+      {/* Footer */}
+      <footer className="bg-vibe-950 text-white mt-20 border-t border-vibe-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
+          {/* Brand */}
+          <div className="space-y-3 sm:col-span-2 md:col-span-1">
+            <div className="text-2xl font-black uppercase tracking-tight">
+              VIBE<span className="text-vibe-accent">BILI</span><span className="text-base font-bold text-vibe-500 lowercase">.vn</span>
             </div>
-            <p className="text-orange-400 font-bold text-xs italic">
-              "Biến hóa mỗi ngày, trọn vẹn phong cách"
+            <p className="text-vibe-accent text-sm font-medium italic">"Biến hóa mỗi ngày, trọn vẹn phong cách"</p>
+            <p className="text-vibe-500 text-xs leading-relaxed">
+              Sàn TMĐT chuyên biệt Tóc giả cao cấp & Thời trang xu hướng hàng đầu Việt Nam.
             </p>
-            <p className="text-gray-400 leading-relaxed text-[11px]">
-              Sàn thương mại điện tử chuyên biệt kết hợp Tóc giả cao cấp & Thời trang xu hướng hàng đầu Việt Nam.
-            </p>
+            <div className="flex gap-3 pt-2">
+              {['Facebook', 'TikTok', 'Instagram'].map((s) => (
+                <button key={s} className="text-vibe-500 hover:text-white text-xs transition-colors font-medium">{s}</button>
+              ))}
+            </div>
           </div>
 
+          {/* Support */}
           <div>
-            <h4 className="font-bold uppercase tracking-wider text-xs mb-3 text-white">Chăm Sóc Khách Hàng</h4>
-            <ul className="space-y-2 text-gray-400 text-[11px]">
-              <li onClick={() => { setCurrentView('orders'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-white transition cursor-pointer">
-                Tra cứu đơn mua của tôi
-              </li>
-              <li onClick={() => { setCurrentView('spa'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-white transition cursor-pointer">
-                Spa & phục hồi nếp tóc giả
-              </li>
+            <h4 className="font-semibold text-xs uppercase tracking-widest text-vibe-400 mb-4">Hỗ Trợ</h4>
+            <ul className="space-y-2.5 text-vibe-500 text-xs">
+              <li onClick={() => { setCurrentView('orders'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-white transition cursor-pointer">Tra cứu đơn hàng</li>
+              <li onClick={() => { setCurrentView('spa'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-white transition cursor-pointer">Spa & phục hồi tóc giả</li>
               <li className="hover:text-white transition cursor-pointer">Hướng dẫn chọn size & vòng đầu</li>
               <li className="hover:text-white transition cursor-pointer">Chính sách đổi trả 15 ngày</li>
+              <li className="hover:text-white transition cursor-pointer">Hotline: 1900 6868</li>
             </ul>
           </div>
 
+          {/* Partners */}
           <div>
-            <h4 className="font-bold uppercase tracking-wider text-xs mb-3 text-white">Dành Cho Đối Tác</h4>
-            <ul className="space-y-2 text-gray-400 text-[11px]">
-              <li 
+            <h4 className="font-semibold text-xs uppercase tracking-widest text-vibe-400 mb-4">Đối Tác</h4>
+            <ul className="space-y-2.5 text-vibe-500 text-xs">
+              <li
                 onClick={() => { setCurrentView('seller'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                className="hover:text-orange-400 transition cursor-pointer font-bold flex items-center space-x-1"
+                className="hover:text-vibe-accent transition cursor-pointer font-medium flex items-center gap-1.5"
               >
-                <StoreIcon className="w-3.5 h-3.5 text-orange-400" />
-                <span>Kênh Người Bán / Mở Gian Hàng</span>
+                <StoreIcon className="w-3.5 h-3.5 text-vibe-accent" />
+                Mở Gian Hàng / Kênh Người Bán
               </li>
               {isAdmin && (
-                <li 
+                <li
                   onClick={() => { setCurrentView('admin'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                  className="hover:text-purple-400 transition cursor-pointer font-bold text-purple-400"
+                  className="hover:text-purple-400 transition cursor-pointer text-purple-400 font-medium"
                 >
-                  Quản Trị Hệ Thống Admin
+                  🛡️ Quản Trị Hệ Thống
                 </li>
               )}
               <li className="hover:text-white transition cursor-pointer">Quy chế hoạt động sàn TMĐT</li>
-              <li className="hover:text-white transition cursor-pointer">Cam kết tiêu chuẩn chất lượng sợi tơ</li>
+              <li className="hover:text-white transition cursor-pointer">Cam kết tiêu chuẩn sợi tơ</li>
             </ul>
           </div>
 
-          {/* Form Đăng ký nhận voucher 100k */}
+          {/* Newsletter */}
           <div className="space-y-3">
-            <h4 className="font-bold uppercase tracking-wider text-xs mb-1 text-white">Đăng Ký Nhận Voucher 100K</h4>
-            <p className="text-gray-400 text-[11px]">Nhận ngay mã giảm 100K cho đơn hàng đầu tiên tại VibeBili.vn:</p>
-            <form onSubmit={handleNewsletterSubmit} className="flex">
-              <input 
-                type="email" 
+            <h4 className="font-semibold text-xs uppercase tracking-widest text-vibe-400 mb-1">Nhận Voucher 100K</h4>
+            <p className="text-vibe-500 text-xs">Đăng ký nhận bản tin, nhận ngay mã giảm 100K cho đơn đầu tiên:</p>
+            <form onSubmit={handleNewsletterSubmit} className="flex gap-0 rounded-xl overflow-hidden border border-vibe-800">
+              <input
+                type="email"
                 required
-                placeholder="Nhập email của bạn..." 
+                placeholder="Email của bạn..."
                 value={newsletterEmail}
                 onChange={(e) => setNewsletterEmail(e.target.value)}
-                className="bg-neutral-900 border border-neutral-700 px-3 py-2 text-xs rounded-l focus:outline-none focus:border-white flex-1 text-white"
+                className="bg-vibe-900 border-0 px-3 py-2.5 text-xs flex-1 text-white placeholder:text-vibe-600 focus:outline-none"
               />
-              <button 
+              <button
                 type="submit"
-                className="bg-white text-black font-extrabold px-4 rounded-r hover:bg-gray-200 text-xs uppercase transition"
+                className="bg-vibe-accent hover:bg-vibe-accent-hover text-white font-semibold px-4 text-xs uppercase transition-colors"
               >
                 Gửi
               </button>
             </form>
-            <p className="text-gray-500 text-[10px]">Đồ án môn học Công nghệ phần mềm / TMĐT — Nhóm 5 thành viên</p>
+            <p className="text-vibe-700 text-2xs">Đồ án môn Công nghệ phần mềm / TMĐT — Nhóm 5 thành viên</p>
           </div>
         </div>
 
-        <div className="border-t border-neutral-900 py-4 text-center text-gray-500 text-[11px]">
-          © 2026 VibeBili.vn Inc. All Rights Reserved. Slogan: "Biến hóa mỗi ngày, trọn vẹn phong cách".
+        <div className="border-t border-vibe-900 py-4 text-center text-vibe-600 text-xs">
+          © 2026 VibeBili.vn — "Biến hóa mỗi ngày, trọn vẹn phong cách"
         </div>
       </footer>
     </div>

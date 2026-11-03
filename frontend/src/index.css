@@ -2,24 +2,202 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================
+   VibeBili.vn — Global Design System
+   Baoyu Design Principles Applied
+   ============================================ */
+
 @layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: #f8f7f5;
+    color: #1a1a1a;
+    line-height: 1.6;
+  }
+
+  /* Typography scale */
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+
+  /* Focus styles — accessible */
+  :focus-visible {
+    outline: 2px solid #d4642c;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Selection highlight */
+  ::selection {
+    background: #fef0e8;
+    color: #c4571f;
   }
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+@layer components {
+  /* ---- Buttons ---- */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 bg-vibe-black text-white
+           font-semibold text-sm px-5 py-2.5 rounded-full
+           hover:bg-vibe-800 active:scale-[0.98]
+           transition-all duration-150
+           shadow-btn focus-visible:ring-2 focus-visible:ring-vibe-black focus-visible:ring-offset-2;
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 bg-white text-vibe-black
+           font-semibold text-sm px-5 py-2.5 rounded-full border border-vibe-border
+           hover:border-vibe-black hover:bg-vibe-50
+           active:scale-[0.98] transition-all duration-150
+           focus-visible:ring-2 focus-visible:ring-vibe-black focus-visible:ring-offset-2;
+  }
+
+  .btn-accent {
+    @apply inline-flex items-center justify-center gap-2 bg-vibe-accent text-white
+           font-semibold text-sm px-5 py-2.5 rounded-full
+           hover:bg-vibe-accent-hover active:scale-[0.98]
+           transition-all duration-150 shadow-btn
+           focus-visible:ring-2 focus-visible:ring-vibe-accent focus-visible:ring-offset-2;
+  }
+
+  /* ---- Cards ---- */
+  .card {
+    @apply bg-white rounded-2xl border border-vibe-border shadow-card
+           transition-shadow duration-200;
+  }
+
+  .card-hover {
+    @apply hover:shadow-card-md hover:border-vibe-300;
+  }
+
+  /* ---- Product Card ---- */
+  .product-card {
+    @apply bg-white rounded-2xl overflow-hidden cursor-pointer
+           border border-vibe-border shadow-product
+           hover:shadow-product-hover hover:-translate-y-0.5
+           transition-all duration-250 flex flex-col;
+  }
+
+  /* ---- Badges ---- */
+  .badge {
+    @apply inline-flex items-center gap-1 text-2xs font-bold uppercase tracking-wider
+           px-2 py-0.5 rounded-full;
+  }
+
+  .badge-hot {
+    @apply badge bg-red-600 text-white;
+  }
+
+  .badge-new {
+    @apply badge bg-vibe-black text-white;
+  }
+
+  .badge-sale {
+    @apply badge bg-vibe-accent text-white;
+  }
+
+  .badge-combo {
+    @apply badge bg-amber-100 text-amber-800 border border-amber-200;
+  }
+
+  /* ---- Input fields ---- */
+  .input {
+    @apply w-full bg-white border border-vibe-border rounded-xl
+           px-4 py-2.5 text-sm text-vibe-ink placeholder:text-vibe-subtle
+           focus:outline-none focus:border-vibe-black focus:ring-1 focus:ring-vibe-black/20
+           transition-all duration-150;
+  }
+
+  /* ---- Section heading ---- */
+  .section-title {
+    @apply text-xl font-bold text-vibe-ink tracking-tight;
+  }
+
+  .section-subtitle {
+    @apply text-sm text-vibe-muted mt-1;
+  }
+
+  /* ---- Navigation link ---- */
+  .nav-link {
+    @apply text-xs font-semibold uppercase tracking-wider text-vibe-600
+           hover:text-vibe-black cursor-pointer whitespace-nowrap
+           pb-0.5 border-b-2 border-transparent
+           hover:border-vibe-black transition-all duration-150;
+  }
+
+  .nav-link-active {
+    @apply nav-link text-vibe-black border-vibe-black font-bold;
+  }
+
+  /* ---- Skeleton loader ---- */
+  .skeleton {
+    @apply bg-gradient-to-r from-vibe-100 via-vibe-50 to-vibe-100
+           bg-[length:200%_100%] animate-shimmer rounded;
+  }
+
+  /* ---- Divider ---- */
+  .divider {
+    @apply border-t border-vibe-border;
+  }
+
+  /* ---- Toast ---- */
+  .toast {
+    @apply fixed bottom-6 right-6 z-50 flex items-center gap-2.5
+           bg-vibe-black text-white text-xs font-semibold
+           px-5 py-3 rounded-full shadow-card-lg
+           border border-white/10 animate-slide-up;
+  }
 }
-::-webkit-scrollbar-track {
-  background: #f1f1f1;
+
+@layer utilities {
+  /* Hide scrollbar but keep scroll functional */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-style: none; }
+
+  /* Line clamp utilities */
+  .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+  .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* Aspect ratios */
+  .aspect-product { aspect-ratio: 3/4; }
+  .aspect-banner  { aspect-ratio: 16/5; }
+
+  /* Glass morphism */
+  .glass {
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+    background: rgba(255, 255, 255, 0.85);
+  }
+
+  /* Gradient text */
+  .text-gradient {
+    background: linear-gradient(135deg, #1a1a1a 0%, #d4642c 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
 }
-::-webkit-scrollbar-thumb {
-  background: #ccc;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #999;
-}
+
+/* ---- Custom scrollbar ---- */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+
+/* ---- Transition duration extras ---- */
+.duration-250 { transition-duration: 250ms; }

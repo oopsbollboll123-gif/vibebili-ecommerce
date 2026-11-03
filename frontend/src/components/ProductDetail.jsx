@@ -292,15 +292,15 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onBack 
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-24 text-center text-gray-500">
-        <div className="inline-block animate-spin w-8 h-8 border-3 border-gray-900 border-t-transparent rounded-full mb-3"></div>
+      <div className="max-w-7xl mx-auto px-4 py-24 text-center text-vibe-muted">
+        <div className="inline-block animate-spin w-8 h-8 border-2 border-vibe-200 border-t-vibe-ink rounded-full mb-3"></div>
         <p className="text-xs font-bold uppercase tracking-wider">Đang tải trang chi tiết sản phẩm VibeBili...</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 text-gray-900">
+    <div className="max-w-7xl mx-auto px-4 py-6 text-vibe-ink">
       {/* Toast thông báo review thành công */}
       {reviewSuccessMsg && (
         <div className="fixed top-20 right-6 z-50 bg-black/90 text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-2xl backdrop-blur-md border border-white/10 flex items-center space-x-2 animate-bounce">
