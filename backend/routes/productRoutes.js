@@ -7,6 +7,7 @@ const {
   bulkCreateProducts,
   deleteProduct,
   getCategories,
+  updateCategory,
   getProductReviews,
   createProductReview
 } = require('../controllers/productController');
@@ -14,6 +15,7 @@ const { authenticateToken, authorizeRoles } = require('../middleware/authMiddlew
 
 // Lấy danh sách danh mục (đặt trước /:id để tránh trùng lặp)
 router.get('/categories', getCategories);
+router.put('/categories/:id', updateCategory);
 
 // Lấy danh sách sản phẩm (có filter, search)
 router.get('/', getAllProducts);

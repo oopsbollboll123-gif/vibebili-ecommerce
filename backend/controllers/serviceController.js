@@ -136,6 +136,132 @@ const createVoucher = async (req, res) => {
   });
 };
 
+// Cập nhật Voucher (Admin Financial & Seller)
+const updateVoucher = async (req, res) => {
+  const { id } = req.params;
+  const {
+    code,
+    name,
+    campaign_name,
+    discount_type,
+    discount_value,
+    discount_percent,
+    min_order_value,
+    max_discount,
+    total_usage_limit,
+    per_user_limit,
+    target_platform,
+    start_date,
+    end_date,
+    status
+  } = req.body;
+
+  const voucher = mockData.vouchers.find(v => v.id === parseInt(id));
+  if (!voucher) {
+    return res.status(404).json({ success: false, message: 'Không tìm thấy mã voucher!' });
+  }
+
+  if (code) voucher.code = code.toUpperCase().trim();
+  if (name) voucher.name = name;
+  if (campaign_name) voucher.campaign_name = campaign_name;
+  if (discount_type) voucher.discount_type = discount_type;
+  if (discount_value !== undefined) voucher.discount_value = Number(discount_value);
+  if (discount_percent !== undefined) voucher.discount_percent = Number(discount_percent);
+  if (min_order_value !== undefined) voucher.min_order_value = Number(min_order_value);
+  if (max_discount !== undefined) voucher.max_discount = Number(max_discount);
+  if (total_usage_limit !== undefined) voucher.total_usage_limit = Number(total_usage_limit);
+  if (per_user_limit !== undefined) voucher.per_user_limit = Number(per_user_limit);
+  if (target_platform) voucher.target_platform = target_platform;
+  if (start_date) voucher.start_date = start_date;
+  if (end_date) voucher.end_date = end_date;
+  if (status) voucher.status = status;
+
+  return res.status(200).json({
+    success: true,
+    message: `Cập nhật voucher [${voucher.code}] thành công!`,
+    data: voucher
+  });
+};
+
+// ==========================================
+// 2B. KIỂM DUYỆT SẢN PHẨM (ADMIN MODERATOR)
+// ==========================================
+
+const getPendingProducts = async (req, res) => {
+  return res.status(200).json({ success: true, count: mockData.pendingProducts.length, data: mockData.pendingProducts });
+};
+
+const moderateProduct = async (req, res) => {
+  const { id } = req.params;
+  const { action, reject_reason } = req.body; // action: 'approve' | 'reject'
+  const prodId = parseInt(id);
+
+  const idx = mockData.pendingProducts.findIndex(p => p.id === prodId);
+  if (idx === -1) {
+    return res.status(404).json({ success: false, message: 'Không tìm thấy sản phẩm chờ duyệt!' });
+  }
+
+  const product = mockData.pendingProducts[idx];
+
+  if (action === 'approve') {
+    // Thêm vào danh sách sản phẩm chính thức trên sàn
+    const approvedProduct = {
+      ...product,
+      id: mockData.products.length + 10,
+      rating: 5.0,
+      sold_count: 0,
+      is_hot: false,
+      is_combo: product.category_name?.toLowerCase().includes('combo') || false,
+      status: 'active'
+    };
+    mockData.products.unshift(approvedProduct);
+    mockData.pendingProducts.splice(idx, 1);
+
+    return res.status(200).json({
+      success: true,
+      message: `🎉 Đã phê duyệt sản phẩm [${product.name}] thành công! Sản phẩm đã hiển thị trực tiếp trên sàn VibeBili.vn.`,
+      data: approvedProduct
+    });
+  } else {
+    product.status = 'rejected';
+    product.reject_reason = reject_reason || 'Không đạt chuẩn kiểm duyệt hình ảnh / mô tả của VibeBili.vn';
+    mockData.pendingProducts.splice(idx, 1);
+
+    return res.status(200).json({
+      success: true,
+      message: `Đã từ chối duyệt sản phẩm [${product.name}]. Lý do: ${product.reject_reason}`,
+      data: product
+    });
+  }
+};
+
+// ==========================================
+// 2C. KHIẾU NẠI & HỖ TRỢ KHÁCH HÀNG (ADMIN SUPPORT)
+// ==========================================
+
+const getComplaints = async (req, res) => {
+  return res.status(200).json({ success: true, count: mockData.complaints.length, data: mockData.complaints });
+};
+
+const updateComplaint = async (req, res) => {
+  const { id } = req.params;
+  const { status, resolution_note } = req.body;
+
+  const complaint = mockData.complaints.find(c => c.id === id);
+  if (!complaint) {
+    return res.status(404).json({ success: false, message: 'Không tìm thấy đơn khiếu nại!' });
+  }
+
+  if (status) complaint.status = status;
+  if (resolution_note !== undefined) complaint.resolution_note = resolution_note;
+
+  return res.status(200).json({
+    success: true,
+    message: `Đã cập nhật khiếu nại #${id} thành công!`,
+    data: complaint
+  });
+};
+
 // Xóa Voucher
 const deleteVoucher = async (req, res) => {
   const { id } = req.params;
@@ -244,7 +370,12 @@ module.exports = {
   updateSpaStatus,
   getVouchers,
   createVoucher,
+  updateVoucher,
   deleteVoucher,
+  getPendingProducts,
+  moderateProduct,
+  getComplaints,
+  updateComplaint,
   getSellerFinance,
   updateBankAccount,
   requestWithdrawal

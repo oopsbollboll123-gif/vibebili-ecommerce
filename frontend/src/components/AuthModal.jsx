@@ -50,13 +50,20 @@ function AuthModal() {
     }
   };
 
+  const [showAdminRoles, setShowAdminRoles] = useState(false);
+
   // Nút đăng nhập nhanh 1-click cho buổi Thuyết trình & Chấm điểm (Live Demo)
-  const handleQuickLogin = async (role) => {
+  const handleQuickLogin = async (roleType) => {
     setLoading(true);
     setErrorMessage('');
     let email = 'khachhang@gmail.com';
-    if (role === 'admin') email = 'phuc@admin.com';
-    if (role === 'seller') email = 'maitran@shop.com';
+
+    if (roleType === 'superadmin' || roleType === 'admin') email = 'superadmin@admin.com';
+    else if (roleType === 'moderator' || roleType === 'admin-moderator') email = 'moderator@admin.com';
+    else if (roleType === 'financial' || roleType === 'admin-financial') email = 'financial@admin.com';
+    else if (roleType === 'support' || roleType === 'admin-support') email = 'support@admin.com';
+    else if (roleType === 'seller') email = 'maitran@shop.com';
+    else if (roleType === 'customer') email = 'khachhang@gmail.com';
 
     const result = await login(email, '123456');
     setLoading(false);
@@ -103,33 +110,84 @@ function AuthModal() {
         </div>
 
         {/* Quick Demo Helper (Thuyết trình bảo vệ đồ án) */}
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-5">
-          <div className="text-[11px] font-bold text-orange-800 uppercase tracking-wider mb-1.5 flex items-center">
-            ⚡ Đăng Nhập Nhanh (Dành cho Giám Khảo / Demo):
+        <div className="bg-orange-50/80 border border-orange-200 rounded-xl p-3 mb-5 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-black text-orange-900 uppercase tracking-wider flex items-center gap-1">
+              ⚡ Đăng Nhập Nhanh Giám Khảo:
+            </span>
+            <span className="text-[10px] text-orange-600 font-semibold">1-Click Live Demo</span>
           </div>
+
           <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
               onClick={() => handleQuickLogin('customer')}
-              className="bg-white border border-orange-300 text-orange-700 hover:bg-orange-600 hover:text-white px-2 py-1 rounded text-xs font-semibold transition"
+              className="bg-white border border-orange-200 text-gray-800 hover:bg-orange-500 hover:text-white px-2 py-1.5 rounded-lg text-xs font-bold transition shadow-sm"
             >
               👤 Khách Hàng
             </button>
             <button
               type="button"
               onClick={() => handleQuickLogin('seller')}
-              className="bg-white border border-orange-300 text-orange-700 hover:bg-orange-600 hover:text-white px-2 py-1 rounded text-xs font-semibold transition"
+              className="bg-white border border-orange-200 text-orange-700 hover:bg-orange-600 hover:text-white px-2 py-1.5 rounded-lg text-xs font-bold transition shadow-sm"
             >
               🏪 Người Bán
             </button>
             <button
               type="button"
-              onClick={() => handleQuickLogin('admin')}
-              className="bg-white border border-orange-300 text-orange-700 hover:bg-orange-600 hover:text-white px-2 py-1 rounded text-xs font-semibold transition"
+              onClick={() => setShowAdminRoles(!showAdminRoles)}
+              className={`border px-2 py-1.5 rounded-lg text-xs font-bold transition shadow-sm flex items-center justify-center gap-1 ${
+                showAdminRoles
+                  ? 'bg-purple-700 text-white border-purple-800'
+                  : 'bg-white border-purple-300 text-purple-700 hover:bg-purple-600 hover:text-white'
+              }`}
             >
-              👑 Quản Trị
+              👑 Quản Trị {showAdminRoles ? '▲' : '▼'}
             </button>
           </div>
+
+          {/* Sub-options khi chọn Role Admin */}
+          {showAdminRoles && (
+            <div className="bg-white/90 p-2.5 rounded-lg border border-purple-200 space-y-1.5 mt-2 animate-fadeIn">
+              <div className="text-[10px] font-extrabold text-purple-900 uppercase tracking-wider">
+                Chọn Phân Quyền Admin Cụ Thể:
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('superadmin')}
+                  className="bg-purple-50 hover:bg-purple-600 hover:text-white border border-purple-200 text-purple-800 text-[11px] font-bold py-1.5 px-2 rounded text-left transition flex items-center gap-1"
+                >
+                  <span>👑</span>
+                  <span>Super Admin</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('moderator')}
+                  className="bg-blue-50 hover:bg-blue-600 hover:text-white border border-blue-200 text-blue-800 text-[11px] font-bold py-1.5 px-2 rounded text-left transition flex items-center gap-1"
+                >
+                  <span>🛡️</span>
+                  <span>Admin Kiểm Duyệt</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('financial')}
+                  className="bg-emerald-50 hover:bg-emerald-600 hover:text-white border border-emerald-200 text-emerald-800 text-[11px] font-bold py-1.5 px-2 rounded text-left transition flex items-center gap-1"
+                >
+                  <span>💰</span>
+                  <span>Admin Tài Chính</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('support')}
+                  className="bg-amber-50 hover:bg-amber-600 hover:text-white border border-amber-200 text-amber-800 text-[11px] font-bold py-1.5 px-2 rounded text-left transition flex items-center gap-1"
+                >
+                  <span>🎧</span>
+                  <span>Admin CSKH</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {errorMessage && (

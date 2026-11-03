@@ -296,6 +296,33 @@ const getCategories = async (req, res) => {
   }
 };
 
+// 6B. Cập nhật danh mục & tùy chỉnh số lượng sản phẩm (Admin)
+const updateCategory = async (req, res) => {
+  const { id } = req.params;
+  const { name, count, slug } = req.body;
+  const catId = parseInt(id);
+
+  try {
+    await db.query(
+      'UPDATE Categories SET name = COALESCE(?, name), count = COALESCE(?, count) WHERE id = ?',
+      [name, count, catId]
+    );
+  } catch (err) {}
+
+  const cat = mockData.categories.find(c => c.id === catId);
+  if (cat) {
+    if (name) cat.name = name;
+    if (count !== undefined) cat.count = Number(count);
+    if (slug) cat.slug = slug;
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: 'Cập nhật danh mục và số lượng sản phẩm thành công!',
+    data: cat
+  });
+};
+
 // 7. Lấy danh sách đánh giá thực tế của sản phẩm (Reviews kèm Fit Tags)
 const getProductReviews = async (req, res) => {
   const { id } = req.params;
@@ -357,6 +384,7 @@ module.exports = {
   bulkCreateProducts,
   deleteProduct,
   getCategories,
+  updateCategory,
   getProductReviews,
   createProductReview
 };

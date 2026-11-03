@@ -268,6 +268,22 @@ function MainApp() {
               <span className="hidden sm:inline">Đơn mua</span>
             </button>
 
+            {/* Shortcut Quản Trị Hệ Thống dành riêng cho Admin */}
+            {isAdmin && (
+              <button
+                onClick={() => { setCurrentView('admin'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                className={`inline-flex items-center space-x-1 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full font-bold text-xs transition border ${
+                  currentView === 'admin'
+                    ? 'bg-purple-900 text-white border-purple-900 shadow'
+                    : 'bg-purple-50 text-purple-900 border-purple-200 hover:bg-purple-100'
+                }`}
+                title="Vào hệ thống Quản Trị Trung Tâm Admin"
+              >
+                <span>🛡️</span>
+                <span className="hidden md:inline">Admin Portal</span>
+              </button>
+            )}
+
             {/* User Account / Đăng Nhập */}
             {isAuthenticated ? (
               <div className="flex items-center space-x-2">
@@ -664,6 +680,7 @@ function MainApp() {
             initialMode={authInitialMode}
             onNavigateHome={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
             onNavigateSeller={() => { setCurrentView('seller'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            onNavigateAdmin={() => { setCurrentView('admin'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
           />
         )}
 
@@ -677,7 +694,10 @@ function MainApp() {
 
         {/* QUẢN TRỊ ADMIN */}
         {currentView === 'admin' && (
-          <AdminPanel />
+          <AdminPanel 
+            onNavigateHome={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            onNavigateLogin={() => { setAuthInitialMode('login'); setCurrentView('login'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          />
         )}
       </div>
 

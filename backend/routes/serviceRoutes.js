@@ -7,7 +7,12 @@ const {
   updateSpaStatus,
   getVouchers,
   createVoucher,
+  updateVoucher,
   deleteVoucher,
+  getPendingProducts,
+  moderateProduct,
+  getComplaints,
+  updateComplaint,
   getSellerFinance,
   updateBankAccount,
   requestWithdrawal
@@ -35,7 +40,16 @@ router.put('/spa/:id/status', optionalAuth, updateSpaStatus);
 // --- MARKETING & VOUCHERS ---
 router.get('/marketing/vouchers', optionalAuth, getVouchers);
 router.post('/marketing/vouchers', optionalAuth, createVoucher);
+router.put('/marketing/vouchers/:id', optionalAuth, updateVoucher);
 router.delete('/marketing/vouchers/:id', optionalAuth, deleteVoucher);
+
+// --- KIỂM DUYỆT SẢN PHẨM (ADMIN MODERATOR) ---
+router.get('/moderation/products', optionalAuth, getPendingProducts);
+router.put('/moderation/products/:id', optionalAuth, moderateProduct);
+
+// --- KHIẾU NẠI & CSKH (ADMIN SUPPORT) ---
+router.get('/support/complaints', optionalAuth, getComplaints);
+router.put('/support/complaints/:id', optionalAuth, updateComplaint);
 
 // --- SELLER FINANCE & WALLET ---
 router.get('/finance', optionalAuth, getSellerFinance);

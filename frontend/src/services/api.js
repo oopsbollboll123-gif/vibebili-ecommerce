@@ -79,6 +79,10 @@ export const productAPI = {
     method: 'DELETE'
   }),
   getCategories: () => request('/products/categories'),
+  updateCategory: (id, data) => request(`/products/categories/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  }),
   getReviews: (id) => request(`/products/${id}/reviews`),
   createReview: (id, reviewData) => request(`/products/${id}/reviews`, {
     method: 'POST',
@@ -137,8 +141,26 @@ export const serviceAPI = {
     method: 'POST',
     body: JSON.stringify(data)
   }),
+  updateVoucher: (id, data) => request(`/services/marketing/vouchers/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  }),
   deleteVoucher: (id) => request(`/services/marketing/vouchers/${id}`, {
     method: 'DELETE'
+  }),
+
+  // Kiểm duyệt sản phẩm (Admin Moderator)
+  getPendingProducts: () => request('/services/moderation/products'),
+  moderateProduct: (id, data) => request(`/services/moderation/products/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  }),
+
+  // Khiếu nại & CSKH (Admin Support)
+  getComplaints: () => request('/services/support/complaints'),
+  updateComplaint: (id, data) => request(`/services/support/complaints/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
   }),
 
   // Tài chính & Ví Shop

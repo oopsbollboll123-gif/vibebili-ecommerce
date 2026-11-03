@@ -283,6 +283,13 @@ const login = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Mật khẩu không chính xác!' });
     }
 
+    if (user.status === 'banned') {
+      return res.status(403).json({
+        success: false,
+        message: 'Tài khoản của bạn đã bị KHÓA (Banned) do vi phạm chính sách cộng đồng VibeBili.vn. Vui lòng liên hệ CSKH để được giải quyết!'
+      });
+    }
+
     const userInfo = {
       id: user.id,
       name: user.name,
@@ -310,6 +317,13 @@ const login = async (req, res) => {
     // Cho phép mật khẩu của user hoặc mặc định 123456 / password123
     if (user.password !== password && password !== '123456' && password !== 'password123') {
       return res.status(401).json({ success: false, message: 'Mật khẩu không chính xác!' });
+    }
+
+    if (user.status === 'banned') {
+      return res.status(403).json({
+        success: false,
+        message: 'Tài khoản của bạn đã bị KHÓA (Banned) do vi phạm chính sách cộng đồng VibeBili.vn. Vui lòng liên hệ CSKH để được giải quyết!'
+      });
     }
 
     const userInfo = {

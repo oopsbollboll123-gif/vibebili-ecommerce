@@ -3,13 +3,25 @@
 let users = [
   {
     id: 1,
-    name: "Admin Quản Trị Viên",
-    email: "phuc@admin.com",
-    password: "password123", // Cho phép test trực tiếp bằng 123456 hoặc password123
-    role: "admin",
+    name: "Hoàng Trọng Phúc (Super Admin)",
+    email: "superadmin@admin.com",
+    password: "password123", // Mật khẩu demo: 123456 hoặc password123
+    role: "admin-superadmin",
     phone: "0909123456",
     address: "Trụ sở VibeBili.vn, Quận 1, TP. HCM",
-    status: "active"
+    status: "active",
+    admin_level: "Super Admin Tối Cao"
+  },
+  {
+    id: 100,
+    name: "Admin Quản Trị Hệ Thống (Phúc)",
+    email: "phuc@admin.com",
+    password: "password123",
+    role: "admin-superadmin",
+    phone: "0909123456",
+    address: "Trụ sở VibeBili.vn, Quận 1, TP. HCM",
+    status: "active",
+    admin_level: "Super Admin Tối Cao"
   },
   {
     id: 2,
@@ -40,6 +52,39 @@ let users = [
     phone: "0933112233",
     address: "Khu đô thị ĐHQG, TP. Thủ Đức, TP. HCM",
     status: "active"
+  },
+  {
+    id: 5,
+    name: "Lê Minh Tuấn (Kiểm Duyệt Viên)",
+    email: "moderator@admin.com",
+    password: "password123",
+    role: "admin-moderator",
+    phone: "0918889999",
+    address: "Bộ phận Kiểm Duyệt Nội Dung & An Toàn Sàn VibeBili.vn",
+    status: "active",
+    admin_level: "Admin Kiểm Duyệt"
+  },
+  {
+    id: 6,
+    name: "Phạm Thanh Hà (Kế Toán Trưởng)",
+    email: "financial@admin.com",
+    password: "password123",
+    role: "admin-financial",
+    phone: "0934567890",
+    address: "Khối Tài Chính & Qũy Khuyến Mãi Sàn VibeBili.vn",
+    status: "active",
+    admin_level: "Admin Tài Chính"
+  },
+  {
+    id: 7,
+    name: "Vũ Bảo Ngọc (Trưởng Nhóm CSKH)",
+    email: "support@admin.com",
+    password: "password123",
+    role: "admin-support",
+    phone: "0945678901",
+    address: "Trung Tâm Hỗ Trợ Khách Hàng & Giải Quyết Khiếu Nại",
+    status: "active",
+    admin_level: "Admin Chăm Sóc Khách Hàng"
   }
 ];
 
@@ -370,19 +415,118 @@ let pendingSellers = [
   { id: 2, name: "Lê Hoàng Long", email: "longle@fashion.vn", storeName: "Y2K Streetwear Store", phone: "0988776655", date: "2026-10-27" }
 ];
 
-// Danh sách Voucher khuyến mãi của Shop & Sàn
+// Danh sách sản phẩm chờ kiểm duyệt (Product Moderation cho Admin Moderator)
+let pendingProducts = [
+  {
+    id: 101,
+    seller_id: 2,
+    seller_name: "Wig Luxury Sài Gòn",
+    name: "Tóc Giả Ombre Khói Xanh Pastel 70cm Nữ Hoàng - Sợi Tơ Nhiệt Cao Cấp",
+    category_id: 1,
+    category_name: "Tóc Giả Cao Cấp",
+    price: 490000,
+    original_price: 650000,
+    main_image: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=600&q=80",
+    stock: 50,
+    sku: "WIG-OMB-BLU-70",
+    description: "Tóc giả lượn sóng chịu nhiệt cao đến 180 độ C, phối màu ombre khói xanh pastel xu hướng.",
+    submitted_date: "2026-11-02 14:30",
+    status: "pending"
+  },
+  {
+    id: 102,
+    seller_id: 3,
+    seller_name: "Y2K Streetwear Boutique",
+    name: "Áo Thun Unisex Cyberpunk Graphic Acid Wash Form Boxy",
+    category_id: 6,
+    category_name: "Thời Trang Nam",
+    price: 295000,
+    original_price: 420000,
+    main_image: "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=600&q=80",
+    stock: 120,
+    sku: "TSHIRT-CYBER-BLK",
+    description: "Áo thun cotton 260GSM định lượng cao, hiệu ứng wash rách nhẹ phong cách Cyberpunk Y2K.",
+    submitted_date: "2026-11-02 16:15",
+    status: "pending"
+  },
+  {
+    id: 103,
+    seller_id: 2,
+    seller_name: "Wig Luxury Sài Gòn",
+    name: "Combo Dạ Tiệc: Tóc Bob Bạch Kim x Váy Bodycon Cúp Ngực Tôn Dáng",
+    category_id: 3,
+    category_name: "Outfit x Hairstyle Combo",
+    price: 799000,
+    original_price: 1150000,
+    main_image: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=600&q=80",
+    stock: 25,
+    sku: "COMBO-BOB-WHITE",
+    description: "Set phối sẵn giữa tóc giả Bob bạch kim cá tính và đầm bodycon sang chảnh dạ tiệc.",
+    submitted_date: "2026-11-03 09:10",
+    status: "pending"
+  }
+];
+
+// Danh sách Khiếu nại & Hỗ trợ Khách Hàng (Customer Support & Complaints)
+let complaints = [
+  {
+    id: "KN-9021",
+    customer_name: "Nguyễn Thu Thảo",
+    customer_phone: "0933112233",
+    customer_email: "khachhang@gmail.com",
+    order_id: "ORD-99120",
+    seller_name: "Wig Luxury Sài Gòn",
+    type: "Hàng sai mô tả / Hỗ trợ đổi size",
+    content: "Mình đặt tóc giả màu Nâu Sô-cô-la nhưng shop đóng gói màu Đen Tự Nhiên. Nhờ sàn hỗ trợ liên hệ shop đổi lại đúng màu giúp mình nhé!",
+    created_at: "2026-11-01 10:20",
+    status: "pending", // pending | in_progress | resolved | rejected
+    resolution_note: ""
+  },
+  {
+    id: "KN-8842",
+    customer_name: "Đặng Tuấn Anh",
+    customer_phone: "0908765432",
+    customer_email: "tuananh@gmail.com",
+    order_id: "ORD-87102",
+    seller_name: "Y2K Streetwear Boutique",
+    type: "Vận chuyển giao trễ / Hư hỏng vỏ hộp",
+    content: "Đơn hàng đã hơn 4 ngày chưa thấy GHN phát hàng, hộp hàng bị móp một góc khi bưu tá mang tới. Đề nghị kiểm tra tiến độ giao.",
+    created_at: "2026-10-31 15:45",
+    status: "in_progress",
+    resolution_note: "Đã liên hệ điều phối GHN hối giao gấp trong chiều nay và bù voucher 30k"
+  },
+  {
+    id: "KN-7719",
+    customer_name: "Trần Mai Lan",
+    customer_phone: "0912987654",
+    customer_email: "mailan@yahoo.com",
+    order_id: "ORD-76510",
+    seller_name: "Wig Luxury Sài Gòn",
+    type: "Yêu cầu hoàn tiền dịch vụ Spa tóc",
+    content: "Yêu cầu hoàn tiền vì thời gian xử lý phục hồi tóc lâu hơn 2 ngày so với cam kết ban đầu.",
+    created_at: "2026-10-28 09:15",
+    status: "resolved",
+    resolution_note: "Đã hoàn trả 150.000đ vào ví và tặng kèm 01 chai xịt dưỡng tóc tơ lụa cao cấp."
+  }
+];
+
+// Danh sách Voucher khuyến mãi của Shop & Sàn (Admin Financial quản lý)
 let vouchers = [
   {
     id: 1,
     seller_id: 2,
     code: "VIBENEW100",
     name: "Voucher Chào Mừng Thành Viên Mới",
+    campaign_name: "Chào Mừng Thành Viên Mới 2026",
     discount_type: "fixed",
     discount_value: 100000,
     min_order_value: 300000,
     max_discount: 100000,
-    usage_limit: 500,
-    used_count: 82,
+    discount_percent: 0,
+    total_usage_limit: 1000,
+    per_user_limit: 1,
+    target_platform: "Toàn Sàn VibeBili.vn",
+    used_count: 142,
     start_date: "2026-10-01",
     end_date: "2026-12-31",
     status: "active"
@@ -392,12 +536,16 @@ let vouchers = [
     seller_id: 2,
     code: "VIBEWIG20",
     name: "Ưu Đãi Tóc Giả Cao Cấp -20%",
+    campaign_name: "Siêu Lễ Hội Tóc Xinh VibeWig",
     discount_type: "percent",
     discount_value: 20,
+    discount_percent: 20,
     min_order_value: 400000,
     max_discount: 100000,
-    usage_limit: 100,
-    used_count: 34,
+    total_usage_limit: 500,
+    per_user_limit: 2,
+    target_platform: "Ngành Tóc Giả Cao Cấp",
+    used_count: 88,
     start_date: "2026-10-20",
     end_date: "2026-11-20",
     status: "active"
@@ -407,14 +555,37 @@ let vouchers = [
     seller_id: 2,
     code: "FREESHIP50K",
     name: "Mã Miễn Phí Vận Chuyển Toàn Quốc",
+    campaign_name: "Trợ Giá Vận Chuyển Toàn Quốc",
     discount_type: "freeship",
     discount_value: 30000,
+    discount_percent: 0,
     min_order_value: 200000,
     max_discount: 30000,
-    usage_limit: 200,
-    used_count: 65,
+    total_usage_limit: 800,
+    per_user_limit: 3,
+    target_platform: "Toàn Sàn VibeBili.vn",
+    used_count: 215,
     start_date: "2026-10-25",
     end_date: "2026-11-30",
+    status: "active"
+  },
+  {
+    id: 4,
+    seller_id: 0,
+    code: "MEGA11_SALE",
+    name: "Đại Tiệc Mua Sắm Siêu Sale 11.11",
+    campaign_name: "Mega Sale Đơn Đôi 11.11 Toàn Quốc",
+    discount_type: "percent",
+    discount_value: 30,
+    discount_percent: 30,
+    min_order_value: 500000,
+    max_discount: 200000,
+    total_usage_limit: 2000,
+    per_user_limit: 1,
+    target_platform: "Toàn Sàn VibeBili.vn",
+    used_count: 42,
+    start_date: "2026-11-01",
+    end_date: "2026-11-15",
     status: "active"
   }
 ];
@@ -579,6 +750,8 @@ module.exports = {
   products,
   orders,
   pendingSellers,
+  pendingProducts,
+  complaints,
   vouchers,
   spaRequests,
   sellerFinances,

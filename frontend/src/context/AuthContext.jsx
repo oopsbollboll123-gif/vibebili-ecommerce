@@ -118,14 +118,26 @@ export const AuthProvider = ({ children }) => {
 
   const closeAuthModal = () => setIsAuthModalOpen(false);
 
+  const adminRoles = ['admin', 'superadmin', 'admin-superadmin', 'admin-moderator', 'admin-financial', 'admin-support'];
+  const isAnyAdmin = Boolean(user && (adminRoles.includes(user.role) || user.role?.startsWith('admin-')));
+  const isSuperAdmin = Boolean(user && (user.role === 'admin-superadmin' || user.role === 'superadmin' || user.role === 'admin'));
+  const isModerator = Boolean(user && (user.role === 'admin-moderator' || isSuperAdmin));
+  const isFinancial = Boolean(user && (user.role === 'admin-financial' || isSuperAdmin));
+  const isSupport = Boolean(user && (user.role === 'admin-support' || isSuperAdmin));
+
   return (
     <AuthContext.Provider
       value={{
         user,
         token,
         isAuthenticated: !!user,
-        isAdmin: user?.role === 'admin',
-        isSeller: user?.role === 'seller' || user?.role === 'admin',
+        isAdmin: isAnyAdmin,
+        isSuperAdmin,
+        isModerator,
+        isFinancial,
+        isSupport,
+        adminRole: user?.role,
+        isSeller: user?.role === 'seller' || isAnyAdmin,
         isAuthModalOpen,
         authModalMode,
         setAuthModalMode,

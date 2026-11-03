@@ -9,7 +9,7 @@ import {
   FireIcon
 } from './Icons';
 
-function AuthPage({ onNavigateHome, onNavigateSeller, initialMode = 'login' }) {
+function AuthPage({ onNavigateHome, onNavigateSeller, onNavigateAdmin, initialMode = 'login' }) {
   const {
     user,
     isAuthenticated,
@@ -47,6 +47,53 @@ function AuthPage({ onNavigateHome, onNavigateSeller, initialMode = 'login' }) {
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     setErrorMessage('');
+  };
+
+  // Nút Đăng nhập Nhanh dành cho Giám Khảo & Chấm điểm (1-Click Demo)
+  const handleQuickLogin = async (roleType) => {
+    setLoading(true);
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    let email = 'khachhang@gmail.com';
+    let roleName = 'Khách Mua Hàng';
+
+    if (roleType === 'superadmin' || roleType === 'admin') {
+      email = 'superadmin@admin.com';
+      roleName = 'Super Admin (Tối Cao)';
+    } else if (roleType === 'moderator' || roleType === 'admin-moderator') {
+      email = 'moderator@admin.com';
+      roleName = 'Admin Kiểm Duyệt (Moderator)';
+    } else if (roleType === 'financial' || roleType === 'admin-financial') {
+      email = 'financial@admin.com';
+      roleName = 'Admin Tài Chính (Financial)';
+    } else if (roleType === 'support' || roleType === 'admin-support') {
+      email = 'support@admin.com';
+      roleName = 'Admin CSKH & Khiếu Nại';
+    } else if (roleType === 'seller') {
+      email = 'maitran@shop.com';
+      roleName = 'Người Bán (Wig Luxury Sài Gòn)';
+    }
+
+    setFormData(prev => ({ ...prev, email, password: 'password123' }));
+
+    const res = await login(email, '123456');
+    setLoading(false);
+    if (res.success) {
+      setSuccessMessage(`🎉 Đăng nhập nhanh với quyền [${roleName}] thành công! Đang chuyển hướng...`);
+      setTimeout(() => {
+        if (roleType === 'seller') {
+          onNavigateSeller?.();
+        } else if (roleType.startsWith('admin') || roleType === 'superadmin' || roleType === 'moderator' || roleType === 'financial' || roleType === 'support') {
+          if (onNavigateAdmin) onNavigateAdmin();
+          else onNavigateHome();
+        } else {
+          onNavigateHome();
+        }
+      }, 700);
+    } else {
+      setErrorMessage(res.message);
+    }
   };
 
   // Xử lý submit
@@ -204,7 +251,7 @@ function AuthPage({ onNavigateHome, onNavigateSeller, initialMode = 'login' }) {
               Bảng Điều Hướng Nhanh
             </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div 
                 onClick={onNavigateHome}
                 className="p-5 rounded-xl border border-gray-200 hover:border-black cursor-pointer transition bg-gray-50 hover:bg-white group shadow-sm"
@@ -248,6 +295,23 @@ function AuthPage({ onNavigateHome, onNavigateSeller, initialMode = 'login' }) {
                   </h3>
                   <p className="text-xs text-orange-700/80 mt-1">
                     Trở thành Seller VibeBili, tiếp cận 100K+ khách hàng
+                  </p>
+                </div>
+              )}
+
+              {isAdmin && (
+                <div 
+                  onClick={onNavigateAdmin}
+                  className="p-5 rounded-xl border-2 border-purple-500 hover:border-purple-600 cursor-pointer transition bg-purple-50/50 hover:bg-purple-50 group shadow-sm"
+                >
+                  <div className="w-10 h-10 rounded-lg bg-purple-700 text-white flex items-center justify-center mb-3">
+                    <ShieldCheckIcon className="w-5 h-5 text-white" />
+                  </div>
+                  <h3 className="font-bold text-sm text-purple-900 group-hover:text-purple-700 transition">
+                    Quản Trị Hệ Thống (Admin Panel)
+                  </h3>
+                  <p className="text-xs text-purple-700/80 mt-1">
+                    Vai trò: <span className="font-bold uppercase font-mono">{user.role}</span>. Phân quyền, kiểm duyệt & báo cáo
                   </p>
                 </div>
               )}
@@ -406,6 +470,90 @@ function AuthPage({ onNavigateHome, onNavigateSeller, initialMode = 'login' }) {
           {successMessage && (
             <div className="bg-green-50 border-l-4 border-green-500 text-green-700 text-xs p-3 rounded mb-4">
               {successMessage}
+            </div>
+          )}
+
+          {/* Quick Demo Helper (Dành cho Giám Khảo & Chấm Điểm) */}
+          {mode === 'login' && (
+            <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-purple-50 border border-orange-200 rounded-2xl p-4 mb-5 shadow-sm space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black text-orange-950 uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="text-base">⚡</span>
+                  <span>Đăng Nhập Nhanh Giám Khảo (1-Click Live Demo):</span>
+                </span>
+                <span className="text-[10px] bg-orange-600 text-white font-extrabold px-2 py-0.5 rounded-full">
+                  Bảo Vệ Đồ Án
+                </span>
+              </div>
+
+              {/* Các role thường */}
+              <div className="grid grid-cols-2 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('customer')}
+                  className="bg-white hover:bg-gray-50 border border-gray-200 text-gray-800 text-xs font-bold py-2 px-3 rounded-xl transition shadow-sm flex items-center justify-between group"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span>👤</span>
+                    <span>Khách Hàng</span>
+                  </span>
+                  <span className="text-[10px] text-gray-400 group-hover:text-black font-mono">khachhang@</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('seller')}
+                  className="bg-white hover:bg-orange-50 border border-orange-300 text-orange-800 text-xs font-bold py-2 px-3 rounded-xl transition shadow-sm flex items-center justify-between group"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span>🏪</span>
+                    <span>Người Bán (Wig Luxury)</span>
+                  </span>
+                  <span className="text-[10px] text-orange-500 font-mono">maitran@</span>
+                </button>
+              </div>
+
+              {/* 4 Phân quyền Admin chuyên biệt */}
+              <div className="pt-1.5 border-t border-orange-200/60">
+                <div className="text-[10px] font-extrabold text-purple-900 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                  <span>🛡️</span>
+                  <span>4 Phân Hệ Quản Trị Viên (Admin RBAC):</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin('superadmin')}
+                    className="bg-purple-100/80 hover:bg-purple-700 hover:text-white border border-purple-300 text-purple-900 text-[11px] font-black py-1.5 px-2 rounded-lg text-center transition shadow-xs"
+                    title="Super Admin: Toàn quyền sàn & Cấp quyền admin khác"
+                  >
+                    👑 Super Admin
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin('moderator')}
+                    className="bg-blue-100/80 hover:bg-blue-700 hover:text-white border border-blue-300 text-blue-900 text-[11px] font-black py-1.5 px-2 rounded-lg text-center transition shadow-xs"
+                    title="Kiểm duyệt người bán, duyệt sản phẩm mới, tìm kiếm ID & ban vi phạm"
+                  >
+                    🛡️ Admin Moderator
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin('financial')}
+                    className="bg-emerald-100/80 hover:bg-emerald-700 hover:text-white border border-emerald-300 text-emerald-900 text-[11px] font-black py-1.5 px-2 rounded-lg text-center transition shadow-xs"
+                    title="Quản lý tài chính, doanh thu, voucher & các đợt Mega Sale"
+                  >
+                    💰 Admin Financial
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickLogin('support')}
+                    className="bg-amber-100/80 hover:bg-amber-700 hover:text-white border border-amber-300 text-amber-900 text-[11px] font-black py-1.5 px-2 rounded-lg text-center transition shadow-xs"
+                    title="Chăm sóc khách hàng, xử lý khiếu nại & dịch vụ spa tóc"
+                  >
+                    🎧 Admin CSKH
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
