@@ -12,6 +12,28 @@ const {
   createProductReview
 } = require('../controllers/productController');
 const { authenticateToken, authorizeRoles } = require('../middleware/authMiddleware');
+const { upload, validateUploadedImages } = require('../middleware/uploadMiddleware');
+
+// Upload ảnh sản phẩm an toàn (Xác thực MIME type, Magic Bytes và giới hạn 5MB)
+router.post('/upload', upload.single('image'), validateUploadedImages, (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ success: false, message: 'Vui lòng chọn tệp ảnh để tải lên!' });
+  }
+
+  const base64 = req.file.buffer.toString('base64');
+  const imageUrl = `data:${req.file.mimetype};base64,${base64}`;
+
+  return res.status(200).json({
+    success: true,
+    message: 'Tải ảnh lên và xác thực Magic Bytes bảo mật thành công!',
+    data: {
+      url: imageUrl,
+      fileName: req.file.originalname,
+      size: req.file.size,
+      mimeType: req.file.mimetype
+    }
+  });
+});
 
 // Lấy danh sách danh mục (đặt trước /:id để tránh trùng lặp)
 router.get('/categories', getCategories);

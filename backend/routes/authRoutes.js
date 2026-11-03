@@ -8,22 +8,27 @@ const {
   getProfile,
   getAllUsers,
   updateUserRole,
-  getPendingSellers
+  getPendingSellers,
+  refreshToken,
+  logout
 } = require('../controllers/authController');
 const { authenticateToken, authorizeRoles } = require('../middleware/authMiddleware');
+const { authLimiter } = require('../middleware/rateLimiter');
 
-// Public endpoints
-router.post('/register', register);
-router.post('/register-seller', registerSeller);
-router.post('/login', login);
+// Public endpoints (Bảo vệ bằng Rate Limiter chống brute-force)
+router.post('/register', authLimiter, register);
+router.post('/register-seller', authLimiter, registerSeller);
+router.post('/login', authLimiter, login);
+router.post('/refresh', refreshToken);
+router.post('/logout', logout);
 
 // Private endpoints (Cần đăng nhập)
 router.get('/me', authenticateToken, getProfile);
 router.post('/upgrade-seller', authenticateToken, upgradeToSeller);
 
-// Admin-only endpoints
-router.get('/users', authenticateToken, authorizeRoles('admin'), getAllUsers);
-router.put('/users/:id/role', authenticateToken, authorizeRoles('admin'), updateUserRole);
-router.get('/admin/pending-sellers', authenticateToken, authorizeRoles('admin'), getPendingSellers);
+// Admin-only endpoints (RBAC: Chỉ SuperAdmin và Moderator được xem/sửa người dùng)
+router.get('/users', authenticateToken, authorizeRoles('admin', 'admin-superadmin', 'admin-moderator'), getAllUsers);
+router.put('/users/:id/role', authenticateToken, authorizeRoles('admin', 'admin-superadmin'), updateUserRole);
+router.get('/admin/pending-sellers', authenticateToken, authorizeRoles('admin', 'admin-superadmin', 'admin-moderator'), getPendingSellers);
 
 module.exports = router;

@@ -184,6 +184,7 @@ const createProduct = async (req, res) => {
       sold_count: 0,
       is_hot: true,
       is_combo: false,
+      status: 'PENDING_APPROVAL',
       options: options.length > 0 ? options : [
         { name: 'Phân loại', values: ['Tiêu chuẩn'] }
       ],
@@ -199,11 +200,14 @@ const createProduct = async (req, res) => {
       ]
     };
 
-    mockData.products.unshift(newProd);
+    // Đưa vào danh sách chờ kiểm duyệt (Pending Approval) để Admin duyệt trước khi public
+    if (mockData.pendingProducts) {
+      mockData.pendingProducts.unshift(newProd);
+    }
 
     return res.status(201).json({
       success: true,
-      message: 'Đăng bán sản phẩm mới thành công!',
+      message: 'Sản phẩm đã được gửi duyệt (PENDING_APPROVAL)! Quản trị viên Moderator sẽ thẩm định nội dung trước khi hiển thị công khai trên sàn VibeBili.',
       productId: newProd.id,
       data: newProd
     });

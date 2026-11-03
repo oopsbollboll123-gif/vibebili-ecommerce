@@ -2,16 +2,21 @@ const express = require('express');
 const router = express.Router();
 const {
   createOrder,
+  getOrderById,
   getAllOrders,
   getMyOrders,
   updateOrderStatus,
   schedulePickup,
-  updateShippingAddress
+  updateShippingAddress,
+  requestOrderReturn,
+  handleVNPayWebhook,
+  handleMoMoWebhook,
+  handleSellerWithdrawal
 } = require('../controllers/orderController');
-const { authenticateToken, authorizeRoles } = require('../middleware/authMiddleware');
+const { authenticateToken, authorizeRoles, verifyOrderOwnership } = require('../middleware/authMiddleware');
+const { checkoutLimiter, withdrawLimiter } = require('../middleware/rateLimiter');
 
-// Endpoint tạo đơn hàng (Cho phép cả khách vãng lai lẫn đã đăng nhập)
-// Nếu có header Bearer token thì tự động nhận diện userId
+// Middleware nhận diện User từ JWT nếu có
 const optionalAuth = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -25,21 +30,35 @@ const optionalAuth = (req, res, next) => {
   });
 };
 
-router.post('/', optionalAuth, createOrder);
+// 1. Tạo đơn hàng mới (Bảo vệ bằng checkoutLimiter)
+router.post('/', checkoutLimiter, optionalAuth, createOrder);
 
-// Lấy đơn hàng cá nhân
+// 2. Lấy đơn hàng của người dùng hiện tại (IDOR Protected)
 router.get('/my-orders', authenticateToken, getMyOrders);
 
-// Lấy toàn bộ đơn hàng (Seller & Admin)
+// 3. Webhook Thanh toán Server-to-Server (Xác thực chữ ký HMAC)
+router.get('/webhook/vnpay', handleVNPayWebhook);
+router.post('/webhook/momo', handleMoMoWebhook);
+
+// 4. Rút tiền ví Người Bán (Chống race condition & spam rút tiền)
+router.post('/seller/withdraw', authenticateToken, authorizeRoles('seller'), withdrawLimiter, handleSellerWithdrawal);
+
+// 5. Lấy toàn bộ đơn hàng (Admin & Seller)
 router.get('/', optionalAuth, getAllOrders);
 
-// Cập nhật trạng thái đơn hàng (Seller / Admin)
-router.put('/:id/status', optionalAuth, updateOrderStatus);
+// 6. Lấy chi tiết đơn hàng (Chống IDOR - Bắt buộc kiểm tra quyền sở hữu)
+router.get('/:id', authenticateToken, verifyOrderOwnership, getOrderById);
 
-// Hẹn giờ bưu tá lấy hàng (Seller)
-router.put('/:id/pickup', optionalAuth, schedulePickup);
+// 7. Cập nhật trạng thái đơn hàng (IDOR Protected)
+router.put('/:id/status', authenticateToken, verifyOrderOwnership, updateOrderStatus);
 
-// Đổi địa chỉ nhận hàng (Khách hàng - chỉ khi đơn ở bước Chờ xác nhận)
-router.put('/:id/address', optionalAuth, updateShippingAddress);
+// 8. Hẹn giờ bưu tá lấy hàng (Seller)
+router.put('/:id/pickup', authenticateToken, authorizeRoles('seller', 'admin'), schedulePickup);
+
+// 9. Đổi địa chỉ nhận hàng (Khách hàng - IDOR Protected)
+router.put('/:id/address', authenticateToken, verifyOrderOwnership, updateShippingAddress);
+
+// 10. Yêu cầu hoàn tiền / trả hàng (Return Workflow - IDOR Protected)
+router.post('/:id/return', authenticateToken, verifyOrderOwnership, requestOrderReturn);
 
 module.exports = router;

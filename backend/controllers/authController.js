@@ -1,11 +1,12 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
-const { JWT_SECRET } = require('../middleware/authMiddleware');
+const { JWT_SECRET, JWT_REFRESH_SECRET } = require('../middleware/authMiddleware');
 const mockData = require('../data/mockData');
+const { logAudit } = require('../services/auditService');
 
-// Hàm tạo JWT Token
-const generateToken = (user) => {
+// Tạo Access Token ngắn hạn (15 phút) - Lưu tại Memory / Header
+const generateAccessToken = (user) => {
   return jwt.sign(
     {
       id: user.id,
@@ -14,8 +15,28 @@ const generateToken = (user) => {
       role: user.role
     },
     JWT_SECRET,
+    { expiresIn: '15m' }
+  );
+};
+
+// Tạo Refresh Token dài hạn (7 ngày) - Lưu trong HttpOnly Cookie
+const generateRefreshToken = (user) => {
+  return jwt.sign(
+    { id: user.id },
+    JWT_REFRESH_SECRET,
     { expiresIn: '7d' }
   );
+};
+
+// Thiết lập HttpOnly, Secure, SameSite Cookie cho Refresh Token
+const setRefreshTokenCookie = (res, refreshToken) => {
+  res.cookie('vibebili_refresh_token', refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    path: '/api/auth/refresh',
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 ngày
+  });
 };
 
 // 1. Đăng ký tài khoản (Register - Khách hàng hoặc Người bán)
@@ -69,11 +90,14 @@ const register = async (req, res) => {
       });
     }
 
-    const token = generateToken(newUser);
+    const token = generateAccessToken(newUser);
+    const refreshToken = generateRefreshToken(newUser);
+    setRefreshTokenCookie(res, refreshToken);
+
     return res.status(201).json({
       success: true,
       message: role === 'seller' ? 'Đăng ký gian hàng Người Bán thành công!' : 'Đăng ký tài khoản thành công!',
-      data: { token, user: newUser }
+      data: { token, accessToken: token, user: newUser }
     });
   } catch (error) {
     console.warn('[Register fallback]: Đang lưu vào Mock Data do MySQL chưa kết nối (' + error.message + ')');
@@ -109,11 +133,14 @@ const register = async (req, res) => {
       });
     }
 
-    const token = generateToken(newUser);
+    const token = generateAccessToken(newUser);
+    const refreshToken = generateRefreshToken(newUser);
+    setRefreshTokenCookie(res, refreshToken);
+
     return res.status(201).json({
       success: true,
       message: role === 'seller' ? 'Đăng ký gian hàng Người Bán thành công!' : 'Đăng ký tài khoản thành công!',
-      data: { token, user: newUser }
+      data: { token, accessToken: token, user: newUser }
     });
   }
 };
@@ -202,11 +229,14 @@ const upgradeToSeller = async (req, res) => {
       date: new Date().toISOString().split('T')[0]
     });
 
-    const token = generateToken(updatedUser);
+    const token = generateAccessToken(updatedUser);
+    const refreshToken = generateRefreshToken(updatedUser);
+    setRefreshTokenCookie(res, refreshToken);
+
     return res.status(200).json({
       success: true,
       message: 'Chúc mừng! Bạn đã nâng cấp thành công tài khoản Người Bán (Seller)!',
-      data: { token, user: updatedUser }
+      data: { token, accessToken: token, user: updatedUser }
     });
   } catch (error) {
     console.warn('[Upgrade Seller fallback]: Đang lưu vào Mock Data do MySQL chưa kết nối (' + error.message + ')');
@@ -300,11 +330,14 @@ const login = async (req, res) => {
       status: user.status
     };
 
-    const token = generateToken(userInfo);
+    const token = generateAccessToken(userInfo);
+    const refreshToken = generateRefreshToken(userInfo);
+    setRefreshTokenCookie(res, refreshToken);
+
     return res.status(200).json({
       success: true,
       message: 'Đăng nhập thành công!',
-      data: { token, user: userInfo }
+      data: { token, accessToken: token, user: userInfo }
     });
   } catch (error) {
     console.warn('[Login fallback]: Đang đối chiếu với Mock Data do MySQL chưa kết nối (' + error.message + ')');
@@ -336,11 +369,14 @@ const login = async (req, res) => {
       status: user.status
     };
 
-    const token = generateToken(userInfo);
+    const token = generateAccessToken(userInfo);
+    const refreshToken = generateRefreshToken(userInfo);
+    setRefreshTokenCookie(res, refreshToken);
+
     return res.status(200).json({
       success: true,
       message: 'Đăng nhập thành công!',
-      data: { token, user: userInfo }
+      data: { token, accessToken: token, user: userInfo }
     });
   }
 };
@@ -377,16 +413,30 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-// 5. Cập nhật vai trò / Trạng thái người dùng (Admin)
+// 5. Cập nhật vai trò / Trạng thái người dùng (Admin RBAC + Audit Log)
 const updateUserRole = async (req, res) => {
   const { id } = req.params;
   const { role, status } = req.body;
 
   try {
+    const [beforeRows] = await db.query('SELECT id, name, email, role, status FROM Users WHERE id = ?', [id]);
+    const oldUser = beforeRows[0] || null;
+
     await db.query(
       'UPDATE Users SET role = COALESCE(?, role), status = COALESCE(?, status) WHERE id = ?',
       [role, status, id]
     );
+
+    await logAudit({
+      userId: req.user?.id,
+      action: 'ADMIN_UPDATE_USER_ROLE_STATUS',
+      resourceType: 'Users',
+      resourceId: id,
+      oldValues: oldUser,
+      newValues: { role, status },
+      req
+    });
+
     return res.status(200).json({ success: true, message: 'Cập nhật phân quyền thành công!' });
   } catch (error) {
     const user = mockData.users.find(u => u.id === parseInt(id));
@@ -412,6 +462,70 @@ const getPendingSellers = async (req, res) => {
   }
 };
 
+// 7. Làm mới Token bằng HttpOnly Cookie (Chống XSS lấy cắp token)
+const refreshToken = async (req, res) => {
+  const tokenFromCookie = req.cookies?.vibebili_refresh_token;
+
+  if (!tokenFromCookie) {
+    return res.status(401).json({
+      success: false,
+      message: 'Không tìm thấy Refresh Token hợp lệ trong HttpOnly Cookie!'
+    });
+  }
+
+  jwt.verify(tokenFromCookie, JWT_REFRESH_SECRET, async (err, decoded) => {
+    if (err) {
+      return res.status(403).json({
+        success: false,
+        message: 'Refresh Token đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại!'
+      });
+    }
+
+    try {
+      const [rows] = await db.query('SELECT * FROM Users WHERE id = ?', [decoded.id]);
+      const user = rows[0] || mockData.users.find(u => u.id === decoded.id);
+
+      if (!user || user.status === 'banned') {
+        return res.status(403).json({ success: false, message: 'Tài khoản không khả dụng!' });
+      }
+
+      const userInfo = {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      };
+
+      const newAccessToken = generateAccessToken(userInfo);
+      const newRefreshToken = generateRefreshToken(userInfo);
+      setRefreshTokenCookie(res, newRefreshToken);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Làm mới Access Token thành công!',
+        data: { token: newAccessToken, accessToken: newAccessToken, user: userInfo }
+      });
+    } catch (dbErr) {
+      return res.status(500).json({ success: false, message: 'Lỗi máy chủ khi làm mới token' });
+    }
+  });
+};
+
+// 8. Đăng xuất an toàn (Xóa HttpOnly Cookie)
+const logout = async (req, res) => {
+  res.clearCookie('vibebili_refresh_token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    path: '/api/auth/refresh'
+  });
+
+  return res.status(200).json({
+    success: true,
+    message: 'Đăng xuất tài khoản và vô hiệu hóa Session an toàn!'
+  });
+};
+
 module.exports = {
   register,
   registerSeller,
@@ -420,5 +534,7 @@ module.exports = {
   getProfile,
   getAllUsers,
   updateUserRole,
-  getPendingSellers
+  getPendingSellers,
+  refreshToken,
+  logout
 };

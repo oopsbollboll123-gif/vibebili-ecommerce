@@ -123,3 +123,93 @@ CREATE TABLE IF NOT EXISTS OrderItems (
     FOREIGN KEY (product_id) REFERENCES Products(id) ON DELETE CASCADE,
     FOREIGN KEY (variant_id) REFERENCES ProductVariants(id) ON DELETE SET NULL
 );
+
+-- ========================================================
+-- PHÂN HỆ NÂNG CAO: BẢO MẬT, ESCROW, AUDIT LOG & HOÀN TIỀN
+-- ========================================================
+
+-- 10. Bảng Ví Người Bán (SellerWallets - Quản lý số dư, Escrow, Rút tiền)
+CREATE TABLE IF NOT EXISTS SellerWallets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    seller_id INT UNIQUE NOT NULL,
+    balance DECIMAL(14, 2) NOT NULL DEFAULT 0.00,        -- Số dư khả dụng có thể rút
+    escrow_balance DECIMAL(14, 2) NOT NULL DEFAULT 0.00, -- Số dư đang tạm giữ (Escrow)
+    total_withdrawn DECIMAL(14, 2) NOT NULL DEFAULT 0.00,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (seller_id) REFERENCES Users(id) ON DELETE CASCADE
+);
+
+-- 11. Bảng Tạm Giữ Tiền Trung Gian (EscrowHoldings - Giữ tiền cho đến khi hoàn thành đơn/hết hạn SLA)
+CREATE TABLE IF NOT EXISTS EscrowHoldings (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    seller_id INT NOT NULL,
+    amount DECIMAL(14, 2) NOT NULL,
+    platform_fee DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+    net_amount DECIMAL(14, 2) NOT NULL,
+    status ENUM('HOLDING', 'RELEASED', 'REFUNDED', 'DISPUTED') DEFAULT 'HOLDING',
+    auto_release_at TIMESTAMP NULL, -- Tự động giải ngân sau 7 ngày kể từ khi giao thành công
+    released_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES Orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (seller_id) REFERENCES Users(id) ON DELETE CASCADE,
+    INDEX idx_escrow_status (status),
+    INDEX idx_escrow_auto_release (status, auto_release_at)
+);
+
+-- 12. Bảng Lịch Sử Biến Động Ví (WalletTransactions - ACID & Đối soát)
+CREATE TABLE IF NOT EXISTS WalletTransactions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    wallet_id INT NOT NULL,
+    seller_id INT NOT NULL,
+    transaction_type ENUM('ESCROW_RELEASE', 'WITHDRAW', 'REFUND_DEDUCT', 'ADJUSTMENT') NOT NULL,
+    amount DECIMAL(14, 2) NOT NULL,
+    balance_before DECIMAL(14, 2) NOT NULL,
+    balance_after DECIMAL(14, 2) NOT NULL,
+    reference_id VARCHAR(100) DEFAULT NULL, -- Mã Order ID hoặc Mã Rút Tiền
+    status ENUM('PENDING', 'COMPLETED', 'FAILED', 'REJECTED') DEFAULT 'COMPLETED',
+    note TEXT DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (wallet_id) REFERENCES SellerWallets(id) ON DELETE CASCADE,
+    FOREIGN KEY (seller_id) REFERENCES Users(id) ON DELETE CASCADE
+);
+
+-- 13. Bảng Yêu Cầu Hoàn Tiền / Trả Hàng (OrderReturns)
+CREATE TABLE IF NOT EXISTS OrderReturns (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    return_code VARCHAR(50) UNIQUE NOT NULL,
+    order_id INT NOT NULL,
+    customer_id INT NOT NULL,
+    seller_id INT NOT NULL,
+    reason TEXT NOT NULL,
+    evidence_images JSON DEFAULT NULL,
+    refund_amount DECIMAL(12, 2) NOT NULL,
+    shipping_fee_bearer ENUM('SELLER', 'CUSTOMER', 'PLATFORM') DEFAULT 'SELLER',
+    status ENUM('RETURN_REQUESTED', 'RETURN_REVIEWING', 'RETURN_PICKING_UP', 'REFUNDED', 'RETURN_REJECTED') DEFAULT 'RETURN_REQUESTED',
+    admin_note TEXT DEFAULT NULL,
+    resolved_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (order_id) REFERENCES Orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES Users(id) ON DELETE CASCADE,
+    FOREIGN KEY (seller_id) REFERENCES Users(id) ON DELETE CASCADE
+);
+
+-- 14. Bảng Nhật Ký Kiểm Toán (AuditLogs - Truy vết 100% thay đổi nhạy cảm)
+CREATE TABLE IF NOT EXISTS AuditLogs (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT DEFAULT NULL,
+    user_email VARCHAR(100) DEFAULT NULL,
+    user_role VARCHAR(50) DEFAULT NULL,
+    action VARCHAR(100) NOT NULL,       -- Vd: 'ORDER_STATUS_UPDATE', 'PRODUCT_MODERATION', 'WITHDRAWAL_APPROVE', 'USER_BAN'
+    resource_type VARCHAR(50) NOT NULL, -- Vd: 'Orders', 'Products', 'Users', 'Wallets'
+    resource_id VARCHAR(50) NOT NULL,
+    old_values JSON DEFAULT NULL,
+    new_values JSON DEFAULT NULL,
+    ip_address VARCHAR(45) DEFAULT NULL,
+    user_agent TEXT DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_audit_resource (resource_type, resource_id),
+    INDEX idx_audit_action (action),
+    INDEX idx_audit_created (created_at)
+);
