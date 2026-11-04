@@ -16,7 +16,7 @@ import {
   SparklesIcon
 } from './Icons';
 
-function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onBack }) {
+function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavigatePolicy, onBack }) {
   const { addToCart } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
   const { user, isAuthenticated } = useAuth();
@@ -524,9 +524,15 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onBack 
                 <label className="text-xs font-bold uppercase tracking-wider text-gray-700">
                   {isWigProduct ? '3. Chu vi vòng đầu' : '2. Kích cỡ (Size)'}: <span className="text-black font-extrabold">{selectedSize}</span>
                 </label>
-                <span className="text-xs text-gray-500 cursor-pointer underline font-medium hover:text-black">
-                  Bảng quy đổi size
-                </span>
+                <button
+                  type="button"
+                  onClick={() => onNavigatePolicy ? onNavigatePolicy('size-guide') : null}
+                  className="text-xs text-vibe-accent hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                  title="Xem hướng dẫn đo và bảng quy đổi size vòng đầu"
+                >
+                  <span>📏 Bảng quy đổi size</span>
+                  <span className="text-2xs">↗</span>
+                </button>
               </div>
               <div className="flex flex-wrap gap-2">
                 {activeProduct.sizes.map((sz) => (
@@ -618,7 +624,13 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onBack 
                 <>
                   <div>
                     <span className="font-bold text-gray-900 block">• Chất liệu sợi:</span>
-                    <span>Tơ nhân tạo cao cấp chịu nhiệt 180°C, không bóng lộ.</span>
+                    <span 
+                      onClick={() => onNavigatePolicy ? onNavigatePolicy('fiber-standards') : null}
+                      className="cursor-pointer hover:text-vibe-accent transition-colors"
+                      title="Xem cam kết tiêu chuẩn sợi tơ VibeBili"
+                    >
+                      Tơ nhân tạo cao cấp chịu nhiệt 180°C, không bóng lộ. <span className="text-2xs text-vibe-accent font-bold underline">Xem chuẩn sợi tơ ↗</span>
+                    </span>
                   </div>
                   <div>
                     <span className="font-bold text-gray-900 block">• Loại lưới:</span>
@@ -642,9 +654,13 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onBack 
 
           {/* Cam kết thương hiệu & Vận chuyển */}
           <div className="border-t border-gray-200 pt-4 text-xs text-gray-500 space-y-2">
-            <div className="flex items-center space-x-2">
+            <div 
+              onClick={() => onNavigatePolicy ? onNavigatePolicy('return-policy') : null}
+              className="flex items-center space-x-2 cursor-pointer group hover:text-gray-900 transition-colors"
+              title="Xem chi tiết Chính sách đổi trả 15 ngày toàn diện"
+            >
               <ShieldCheckIcon className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-              <span>Đổi trả miễn phí trong 15 ngày nếu có lỗi từ nhà sản xuất.</span>
+              <span>Đổi trả miễn phí trong 15 ngày nếu có lỗi từ nhà sản xuất. <span className="text-2xs text-vibe-accent font-bold group-hover:underline">Chi tiết ↗</span></span>
             </div>
             <div className="flex items-center space-x-2">
               <TruckIcon className="w-4 h-4 text-emerald-600 flex-shrink-0" />

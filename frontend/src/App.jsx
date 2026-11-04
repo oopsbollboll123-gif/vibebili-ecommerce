@@ -13,6 +13,7 @@ import AuthPage from './components/AuthPage';
 import CustomerSpaService from './components/CustomerSpaService';
 import CustomerOrders from './components/CustomerOrders';
 import WishlistView from './components/WishlistView';
+import PolicyPage from './components/PolicyPage';
 import { productAPI } from './services/api';
 import {
   ShoppingBagIcon,
@@ -51,6 +52,15 @@ function MainApp() {
   // Newsletter Footer state
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [newsletterVoucherPopup, setNewsletterVoucherPopup] = useState(false);
+
+  // Policy & Documentation State ('return-policy' | 'size-guide' | 'terms' | 'fiber-standards')
+  const [policyTab, setPolicyTab] = useState('return-policy');
+
+  const handleOpenPolicy = (tabName = 'return-policy') => {
+    setPolicyTab(tabName);
+    setCurrentView('policy');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Close live search dropdown when clicking outside
   useEffect(() => {
@@ -415,14 +425,23 @@ function MainApp() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-10">
               {[
                 { icon: '🚀', title: 'Giao hỏa tốc 2h', sub: 'TP.HCM & Hà Nội' },
-                { icon: '🔄', title: 'Đổi trả 15 ngày', sub: 'Miễn phí đổi size' },
-                { icon: '🛡️', title: 'Hàng kiểm duyệt', sub: 'Đảm bảo chất lượng' },
-                { icon: '💳', title: 'Thanh toán an toàn', sub: 'Mã hóa SSL 256-bit' },
+                { icon: '🔄', title: 'Đổi trả 15 ngày', sub: 'Miễn phí đổi size', action: () => handleOpenPolicy('return-policy') },
+                { icon: '🛡️', title: 'Hàng kiểm duyệt', sub: 'Đảm bảo chất lượng', action: () => handleOpenPolicy('fiber-standards') },
+                { icon: '💳', title: 'Thanh toán an toàn', sub: 'Mã hóa SSL 256-bit', action: () => handleOpenPolicy('terms') },
               ].map((f) => (
-                <div key={f.title} className="bg-white rounded-2xl border border-vibe-border px-4 py-3.5 flex items-center gap-3 shadow-card">
+                <div 
+                  key={f.title} 
+                  onClick={f.action ? f.action : undefined}
+                  className={`bg-white rounded-2xl border border-vibe-border px-4 py-3.5 flex items-center gap-3 shadow-card transition-all ${
+                    f.action ? 'cursor-pointer hover:border-vibe-accent hover:shadow-card-md' : ''
+                  }`}
+                >
                   <span className="text-2xl flex-shrink-0">{f.icon}</span>
                   <div>
-                    <p className="text-xs font-bold text-vibe-ink">{f.title}</p>
+                    <p className="text-xs font-bold text-vibe-ink flex items-center gap-1">
+                      <span>{f.title}</span>
+                      {f.action && <span className="text-2xs text-vibe-accent">↗</span>}
+                    </p>
                     <p className="text-2xs text-vibe-muted">{f.sub}</p>
                   </div>
                 </div>
@@ -572,6 +591,7 @@ function MainApp() {
             productId={selectedProductId}
             onBack={() => setCurrentView('home')}
             onNavigateCheckout={() => setCurrentView('checkout')}
+            onNavigatePolicy={handleOpenPolicy}
             onNavigateTryOn={(prodId, type) => {
               if (type === 'wig') {
                 setTryOnWigId(prodId);
@@ -657,6 +677,14 @@ function MainApp() {
             onNavigateLogin={() => { setAuthInitialMode('login'); setCurrentView('login'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
           />
         )}
+
+        {/* TRUNG TÂM CHÍNH SÁCH, QUY CHẾ & HƯỚNG DẪN */}
+        {currentView === 'policy' && (
+          <PolicyPage 
+            initialTab={policyTab}
+            onBackToHome={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          />
+        )}
       </div>
 
       {/* Giỏ Hàng Trượt Ngang (CartDrawer) */}
@@ -723,15 +751,24 @@ function MainApp() {
             <ul className="space-y-2.5 text-vibe-500 text-xs">
               <li onClick={() => { setCurrentView('orders'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-white transition cursor-pointer">Tra cứu đơn hàng</li>
               <li onClick={() => { setCurrentView('spa'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="hover:text-white transition cursor-pointer">Spa & phục hồi tóc giả</li>
-              <li className="hover:text-white transition cursor-pointer">Hướng dẫn chọn size & vòng đầu</li>
-              <li className="hover:text-white transition cursor-pointer">Chính sách đổi trả 15 ngày</li>
-              <li className="hover:text-white transition cursor-pointer">Hotline: 1900 6868</li>
+              <li onClick={() => handleOpenPolicy('size-guide')} className="hover:text-white transition cursor-pointer flex items-center justify-between group">
+                <span className="group-hover:text-vibe-accent transition-colors">Hướng dẫn chọn size & vòng đầu</span>
+                <span className="text-2xs text-vibe-subtle group-hover:text-white">↗</span>
+              </li>
+              <li onClick={() => handleOpenPolicy('return-policy')} className="hover:text-white transition cursor-pointer flex items-center justify-between group">
+                <span className="group-hover:text-vibe-accent transition-colors">Chính sách đổi trả 15 ngày</span>
+                <span className="text-2xs text-vibe-subtle group-hover:text-white">↗</span>
+              </li>
+              <li className="hover:text-white transition cursor-pointer flex items-center justify-between">
+                <span>Hotline: 1900 6868</span>
+                <span className="text-2xs bg-vibe-900 text-vibe-accent px-1.5 py-0.5 rounded font-mono font-bold">24/7</span>
+              </li>
             </ul>
           </div>
 
           {/* Partners */}
           <div>
-            <h4 className="font-semibold text-xs uppercase tracking-widest text-vibe-400 mb-4">Đối Tác</h4>
+            <h4 className="font-semibold text-xs uppercase tracking-widest text-vibe-400 mb-4">Đối Tác & Pháp Lý</h4>
             <ul className="space-y-2.5 text-vibe-500 text-xs">
               <li
                 onClick={() => { setCurrentView('seller'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
@@ -748,8 +785,14 @@ function MainApp() {
                   🛡️ Quản Trị Hệ Thống
                 </li>
               )}
-              <li className="hover:text-white transition cursor-pointer">Quy chế hoạt động sàn TMĐT</li>
-              <li className="hover:text-white transition cursor-pointer">Cam kết tiêu chuẩn sợi tơ</li>
+              <li onClick={() => handleOpenPolicy('terms')} className="hover:text-white transition cursor-pointer flex items-center justify-between group">
+                <span className="group-hover:text-vibe-accent transition-colors">Quy chế hoạt động sàn TMĐT</span>
+                <span className="text-2xs text-vibe-subtle group-hover:text-white">↗</span>
+              </li>
+              <li onClick={() => handleOpenPolicy('fiber-standards')} className="hover:text-white transition cursor-pointer flex items-center justify-between group">
+                <span className="group-hover:text-vibe-accent transition-colors">Cam kết tiêu chuẩn sợi tơ</span>
+                <span className="text-2xs text-vibe-subtle group-hover:text-white">↗</span>
+              </li>
             </ul>
           </div>
 
