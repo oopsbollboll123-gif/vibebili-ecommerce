@@ -214,7 +214,15 @@ function MainApp() {
                       onClick={() => handleProductClick(prod.id)}
                       className="p-3 hover:bg-vibe-50 flex items-center gap-3 cursor-pointer transition-colors"
                     >
-                      <img src={prod.main_image} alt={prod.name} className="w-10 h-10 object-cover rounded-xl border border-vibe-border bg-vibe-100 flex-shrink-0" />
+                      <img
+                        src={prod.main_image}
+                        alt={prod.name}
+                        onError={(e) => {
+                          e.currentTarget.onerror = null;
+                          e.currentTarget.src = 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=600&q=80';
+                        }}
+                        className="w-10 h-10 object-cover rounded-xl border border-vibe-border bg-vibe-100 flex-shrink-0"
+                      />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-vibe-ink truncate">{prod.name}</p>
                         <p className="text-2xs text-vibe-subtle mt-0.5">{prod.category_name}</p>
@@ -522,6 +530,10 @@ function MainApp() {
                           src={product.main_image || 'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=600&q=80'}
                           alt={product.name}
                           loading="lazy"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=600&q=80';
+                          }}
                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
                         />
                         {/* Sale badge */}

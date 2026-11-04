@@ -276,7 +276,7 @@ let products = [
     description: "Form quần jean ống suông baggy hack dáng chân dài, chất denim 13oz đứng form không xù lông. Màu wash xám khói vintage cực dễ phối với áo thun hoặc blazer.",
     price: 380000,
     original_price: 550000,
-    main_image: "https://images.unsplash.com/photo-1542272604-780c96856592?auto=format&fit=crop&w=800&q=80",
+    main_image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=800&q=80",
     rating: 4.8,
     sold_count: 890,
     is_hot: true,
