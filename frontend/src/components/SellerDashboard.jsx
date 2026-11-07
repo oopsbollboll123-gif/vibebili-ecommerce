@@ -212,6 +212,38 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
     }
   };
 
+  // Lắng nghe phím Ctrl + V (Dán trực tiếp ảnh chụp màn hình từ Clipboard)
+  useEffect(() => {
+    if (!isAddModalOpen) return;
+
+    const handlePaste = (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              setNewProduct(prev => ({
+                ...prev,
+                image: reader.result,
+                imageUrlInput: ''
+              }));
+              setImageInputMode('upload');
+            };
+            reader.readAsDataURL(file);
+          }
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [isAddModalOpen]);
+
   // Upload ảnh thực tế từ máy tính (FileReader Base64)
   const handleImageFileChange = (e) => {
     const files = Array.from(e.target.files);
@@ -1725,26 +1757,35 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
                     <button
                       type="button"
                       onClick={() => setImageInputMode('url')}
-                      className={`px-3 py-1 rounded-md transition ${
+                      className={`px-2.5 py-1 rounded-md transition ${
                         imageInputMode === 'url' ? 'bg-white text-black shadow-sm' : 'text-gray-600 hover:text-black'
                       }`}
                     >
-                      🔗 Dán Link URL
+                      🔗 Link URL
                     </button>
                     <button
                       type="button"
                       onClick={() => setImageInputMode('upload')}
-                      className={`px-3 py-1 rounded-md transition ${
+                      className={`px-2.5 py-1 rounded-md transition ${
                         imageInputMode === 'upload' ? 'bg-white text-black shadow-sm' : 'text-gray-600 hover:text-black'
                       }`}
                     >
-                      📁 Tải Từ Máy Tính
+                      📁 Tải Từ Máy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImageInputMode('clipboard')}
+                      className={`px-2.5 py-1 rounded-md transition ${
+                        imageInputMode === 'clipboard' ? 'bg-white text-black shadow-sm' : 'text-gray-600 hover:text-black'
+                      }`}
+                    >
+                      📋 Dán Ảnh Chụp (Ctrl+V)
                     </button>
                   </div>
                 </div>
 
                 {/* Chế độ 1: Nhập link ảnh */}
-                {imageInputMode === 'url' ? (
+                {imageInputMode === 'url' && (
                   <div className="space-y-2">
                     <input
                       type="url"
@@ -1761,11 +1802,13 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
                       className="w-full border border-gray-300 rounded-xl px-3 py-2 text-xs bg-white focus:outline-none focus:border-black font-mono"
                     />
                     <p className="text-[10px] text-gray-500">
-                      💡 Mẹo: Bạn có thể sao chép địa chỉ hình ảnh từ bất kỳ trang web nào hoặc Google Images rồi dán vào đây.
+                      💡 Mẹo: Bạn có thể sao chép địa chỉ hình ảnh từ bất kỳ trang web nào rồi dán vào đây.
                     </p>
                   </div>
-                ) : (
-                  /* Chế độ 2: Upload file từ máy */
+                )}
+
+                {/* Chế độ 2: Upload file từ máy */}
+                {imageInputMode === 'upload' && (
                   <div className="space-y-2">
                     <input
                       type="file"
@@ -1775,7 +1818,18 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
                       className="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-black file:text-white hover:file:bg-neutral-800 cursor-pointer bg-white p-2 border border-gray-200 rounded-xl"
                     />
                     <p className="text-[10px] text-gray-500">
-                      Hỗ trợ định dạng JPG, PNG, WEBP. Ảnh đầu tiên sẽ làm ảnh bìa chính thức.
+                      Chọn file ảnh chụp màn hình đã lưu (thường ở thư mục <strong>Pictures &gt; Screenshots</strong> hoặc Desktop).
+                    </p>
+                  </div>
+                )}
+
+                {/* Chế độ 3: Dán trực tiếp từ Clipboard */}
+                {imageInputMode === 'clipboard' && (
+                  <div className="p-4 bg-white border border-gray-200 rounded-xl text-center space-y-1.5">
+                    <span className="text-2xl block">📸</span>
+                    <p className="font-bold text-gray-800 text-xs">Vừa chụp màn hình bằng Win + Shift + S hoặc PrtScn?</p>
+                    <p className="text-[11px] text-gray-600">
+                      Bạn không cần lưu file! Chỉ cần nhấn phím <kbd className="px-2 py-0.5 bg-gray-100 border border-gray-300 rounded font-mono font-bold text-black shadow-sm">Ctrl + V</kbd> ngay bây giờ, ảnh chụp sẽ lập tức hiển thị bên dưới.
                     </p>
                   </div>
                 )}
