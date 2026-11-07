@@ -233,7 +233,7 @@ const bulkCreateProducts = async (req, res) => {
     if (!item.name || !item.price) continue;
     const catId = item.category?.includes('Thời Trang Nam') ? 6 : (item.category?.includes('Thời Trang') ? 2 : 1);
     const catName = catId === 6 ? 'Thời Trang Nam' : (catId === 2 ? 'Thời Trang Nữ' : 'Tóc Giả Cao Cấp');
-    const defaultImg = item.image || item.main_image || '';
+    const defaultImg = item.image || item.main_image || item.link_anh || item.hinh_anh || '';
 
     const newProd = {
       id: mockData.products.length > 0 ? Math.max(...mockData.products.map(p => p.id || 0)) + 1 : 1,

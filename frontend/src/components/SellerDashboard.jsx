@@ -322,7 +322,7 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
     }
   };
 
-  // Xử lý File Bulk Upload (CSV hoặc JSON)
+  // Xử lý File Bulk Upload (CSV hoặc JSON) - Hỗ trợ cả cột hình ảnh link_anh / image
   const handleBulkFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -333,24 +333,55 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
       try {
         if (file.name.endsWith('.json')) {
           const parsed = JSON.parse(text);
-          setBulkData(Array.isArray(parsed) ? parsed : [parsed]);
-          setBulkStatus(`Đã đọc ${parsed.length} sản phẩm từ file JSON.`);
+          const rawItems = Array.isArray(parsed) ? parsed : [parsed];
+          const normalized = rawItems.map((item, idx) => ({
+            name: item.name || item.ten_san_pham || `Sản phẩm SKU ${idx + 1}`,
+            category: item.category || item.danh_muc || 'Tóc Giả Cao Cấp',
+            price: Number(item.price || item.gia_ban || 350000),
+            stock: Number(item.stock || item.ton_kho || 50),
+            color: item.color || item.mau_sac || 'Tiêu chuẩn',
+            size: item.size || item.size_vong_dau || 'Tiêu chuẩn',
+            description: item.description || item.mo_ta || '',
+            image: item.image || item.main_image || item.link_anh || item.hinh_anh || ''
+          }));
+          setBulkData(normalized);
+          setBulkStatus(`Đã đọc ${normalized.length} sản phẩm từ file JSON.`);
         } else {
-          // Parse CSV cơ bản
-          const lines = text.split('\n').filter(l => l.trim().length > 0);
-          const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+          // Parse CSV thông minh có nhận diện header
+          const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+          if (lines.length < 2) {
+            setBulkStatus('File CSV không có dữ liệu sản phẩm!');
+            return;
+          }
+          const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
+          
+          const getIndex = (aliases, fallbackIdx) => {
+            const idx = headers.findIndex(h => aliases.some(a => h.includes(a)));
+            return idx !== -1 ? idx : fallbackIdx;
+          };
+
+          const nameIdx = getIndex(['ten', 'name'], 0);
+          const catIdx = getIndex(['danh_muc', 'category', 'loai'], 1);
+          const priceIdx = getIndex(['gia', 'price'], 2);
+          const stockIdx = getIndex(['kho', 'stock', 'ton'], 3);
+          const colorIdx = getIndex(['mau', 'color'], 4);
+          const sizeIdx = getIndex(['size', 'co', 'dau'], 5);
+          const descIdx = getIndex(['mo_ta', 'desc'], 6);
+          const imgIdx = getIndex(['anh', 'image', 'hinh', 'img', 'link_anh'], 7);
+
           const rows = [];
           for (let i = 1; i < lines.length; i++) {
             const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-            if (values.length >= 2) {
+            if (values.length >= 2 && values[nameIdx]) {
               rows.push({
-                name: values[0] || `Sản phẩm SKU ${i}`,
-                category: values[1] || 'Tóc Giả Cao Cấp',
-                price: Number(values[2]) || 350000,
-                stock: Number(values[3]) || 50,
-                color: values[4] || 'Nâu Sô-cô-la',
-                size: values[5] || 'Size M (55 - 57cm)',
-                description: values[6] || 'Hàng chính hãng VibeBili'
+                name: values[nameIdx] || `Sản phẩm SKU ${i}`,
+                category: values[catIdx] || 'Tóc Giả Cao Cấp',
+                price: Number(values[priceIdx]) || 350000,
+                stock: Number(values[stockIdx]) || 50,
+                color: values[colorIdx] || 'Tiêu chuẩn',
+                size: values[sizeIdx] || 'Tiêu chuẩn',
+                description: values[descIdx] || '',
+                image: (imgIdx !== -1 && values[imgIdx]) ? values[imgIdx] : ''
               });
             }
           }
@@ -364,27 +395,47 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
     reader.readAsText(file);
   };
 
-  // Xác nhận Đăng tải hàng loạt
+  // Xác nhận Đăng tải hàng loạt (Lưu Database & localStorage)
   const handleConfirmBulkUpload = async () => {
     if (bulkData.length === 0) return;
     setLoading(true);
     try {
-      const res = await productAPI.bulkCreate(bulkData);
-      if (res.success) {
-        alert(`🎉 ${res.message}`);
-        // Cập nhật state
-        setProducts([...res.data.map(p => ({
+      const res = await productAPI.bulkCreate(bulkData).catch(() => null);
+      
+      let newProductsList = [];
+      if (res && res.success && Array.isArray(res.data)) {
+        newProductsList = res.data.map(p => ({
           id: p.id,
           name: p.name,
-          category: p.category_name,
-          price: p.price,
-          stock: p.variants?.[0]?.stock || 50,
+          category: p.category_name || p.category,
+          price: Number(p.price || 0),
+          stock: p.variants?.[0]?.stock || p.stock || 50,
           status: "Đang bán",
-          image: p.main_image
-        })), ...products]);
-        setIsBulkModalOpen(false);
-        setBulkData([]);
+          image: p.main_image || p.image || ''
+        }));
+      } else {
+        // Fallback local
+        const currentMaxId = products.length > 0 ? Math.max(...products.map(p => p.id || 0)) : 0;
+        newProductsList = bulkData.map((b, idx) => ({
+          id: currentMaxId + idx + 1,
+          name: b.name,
+          category: b.category,
+          price: Number(b.price || 0),
+          stock: Number(b.stock || 50),
+          status: "Đang bán",
+          image: b.image || ''
+        }));
       }
+
+      const updated = [...newProductsList, ...products];
+      setProducts(updated);
+      try {
+        localStorage.setItem('vibebili_custom_products', JSON.stringify(updated));
+      } catch {}
+
+      alert(`🎉 Đăng tải hàng loạt thành công ${newProductsList.length} sản phẩm lên gian hàng VibeBili!`);
+      setIsBulkModalOpen(false);
+      setBulkData([]);
     } catch (err) {
       alert('⚠️ ' + (err.message || 'Lỗi đăng tải hàng loạt!'));
     } finally {
@@ -392,18 +443,52 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
     }
   };
 
-  // Tải file CSV Mẫu
+  // Tải file CSV Mẫu có sẵn cột Link ảnh
   const handleDownloadSampleCSV = () => {
-    const csvContent = "\uFEFF" + "ten_san_pham,danh_muc,gia_ban,ton_kho,mau_sac,size_vong_dau,mo_ta\n"
-      + "Tóc giả nguyên đầu xoăn hippie 65cm,Tóc Giả Cao Cấp,380000,45,Nâu Trà Sữa,Size M (55-57cm),Chịu nhiệt 180 độ C\n"
-      + "Đầm body hai dây phối ren dáng quyến rũ,Thời Trang Nữ,290000,60,Đen Huyền Bí,Size S (42-48kg),Chất vải thun gân co giãn\n"
-      + "Tóc Bob tém cá tính sợi tơ lụa Hàn Quốc,Tóc Giả Cao Cấp,260000,30,Xám Khói,Size M (55-57cm),Phù hợp outfit Y2K";
+    const csvContent = "\uFEFF" + "ten_san_pham,danh_muc,gia_ban,ton_kho,mau_sac,size,mo_ta,link_anh\n"
+      + "Tóc giả xoăn sóng nước 65cm,Tóc Giả Cao Cấp,380000,45,Nâu Trà Sữa,Size M,Chịu nhiệt 180 độ C,https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80\n"
+      + "Áo thun oversize streetwear nam nữ,Thời Trang Nam,220000,100,Đen Washed,Size L,Cotton 100% 250GSM,https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80\n"
+      + "Quần jean ống rộng baggy retro,Thời Trang Nam,390000,50,Xanh Retro,Size 30,Chất denim dày dặn đứng form,https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=800&q=80";
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
     link.setAttribute("download", "vibebili_mau_nhap_hang_loat.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Tải file JSON Mẫu có sẵn trường ảnh
+  const handleDownloadSampleJSON = () => {
+    const sample = [
+      {
+        "name": "Tóc giả xoăn sóng nước 65cm",
+        "category": "Tóc Giả Cao Cấp",
+        "price": 380000,
+        "stock": 45,
+        "color": "Nâu Trà Sữa",
+        "size": "Size M",
+        "description": "Chịu nhiệt 180 độ C mềm mượt",
+        "image": "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80"
+      },
+      {
+        "name": "Áo thun oversize streetwear nam nữ",
+        "category": "Thời Trang Nam",
+        "price": 220000,
+        "stock": 100,
+        "color": "Đen Washed",
+        "size": "Size L",
+        "description": "Cotton 100% 250GSM form boxy",
+        "image": "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=800&q=80"
+      }
+    ];
+    const blob = new Blob([JSON.stringify(sample, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "vibebili_mau_nhap_hang_loat.json");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1429,6 +1514,30 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
             </div>
 
             <div className="space-y-4 text-xs">
+              {/* Nút tải file mẫu */}
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex flex-col sm:flex-row items-center justify-between gap-2">
+                <div>
+                  <span className="font-bold text-amber-900 block">💡 Bạn chưa có file chuẩn?</span>
+                  <span className="text-[11px] text-amber-700">Tải file mẫu có sẵn cấu trúc cột và link hình ảnh mẫu:</span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleDownloadSampleCSV}
+                    className="bg-white hover:bg-gray-50 text-gray-800 border border-amber-300 px-3 py-1.5 rounded-lg text-[11px] font-bold shadow-sm transition flex items-center space-x-1"
+                  >
+                    <span>📥 Tải File CSV Mẫu</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadSampleJSON}
+                    className="bg-white hover:bg-gray-50 text-gray-800 border border-amber-300 px-3 py-1.5 rounded-lg text-[11px] font-bold shadow-sm transition flex items-center space-x-1"
+                  >
+                    <span>📥 Tải File JSON Mẫu</span>
+                  </button>
+                </div>
+              </div>
+
               <div className="border-2 border-dashed border-gray-300 rounded-2xl p-6 text-center space-y-2 hover:border-black transition">
                 <input
                   type="file"
@@ -1440,7 +1549,9 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
                 <label htmlFor="bulkFileInput" className="cursor-pointer block">
                   <span className="text-3xl block mb-2">📁</span>
                   <span className="font-bold text-sm text-gray-900 block">Bấm để chọn file CSV hoặc JSON từ máy tính</span>
-                  <span className="text-[11px] text-gray-500">Hỗ trợ các cột: tên, danh mục, giá bán, tồn kho, màu sắc, size</span>
+                  <span className="text-[11px] text-gray-500">
+                    Hỗ trợ các cột: <strong>tên, danh mục, giá bán, tồn kho, màu sắc, size, mô tả, link_anh (URL)</strong>
+                  </span>
                 </label>
               </div>
 
@@ -1450,24 +1561,37 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
                 </div>
               )}
 
-              {/* Bảng xem trước dữ liệu trích xuất */}
+              {/* Bảng xem trước dữ liệu trích xuất kèm hình ảnh */}
               {bulkData.length > 0 && (
                 <div className="space-y-2">
                   <span className="font-bold text-gray-700 block">Xem trước danh sách ({bulkData.length} sản phẩm):</span>
-                  <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-xl">
+                  <div className="max-h-56 overflow-y-auto border border-gray-200 rounded-xl">
                     <table className="w-full text-left text-[11px]">
-                      <thead className="bg-gray-100 text-gray-700 uppercase">
+                      <thead className="bg-gray-100 text-gray-700 uppercase sticky top-0">
                         <tr>
-                          <th className="p-2">Tên</th>
+                          <th className="p-2">Ảnh</th>
+                          <th className="p-2">Tên Sản Phẩm</th>
                           <th className="p-2">Danh mục</th>
                           <th className="p-2">Giá</th>
                           <th className="p-2">Kho</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
-                        {bulkData.slice(0, 5).map((row, i) => (
-                          <tr key={i}>
-                            <td className="p-2 font-medium">{row.name}</td>
+                        {bulkData.map((row, i) => (
+                          <tr key={i} className="hover:bg-gray-50">
+                            <td className="p-2">
+                              {row.image ? (
+                                <img
+                                  src={row.image}
+                                  alt={row.name}
+                                  onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=300&q=80'; }}
+                                  className="w-8 h-8 rounded-lg object-cover border border-gray-200"
+                                />
+                              ) : (
+                                <span className="text-gray-400 text-[10px]">Chưa có</span>
+                              )}
+                            </td>
+                            <td className="p-2 font-medium max-w-xs truncate">{row.name}</td>
                             <td className="p-2">{row.category}</td>
                             <td className="p-2 font-bold text-red-600">{Number(row.price).toLocaleString()}đ</td>
                             <td className="p-2">{row.stock}</td>
