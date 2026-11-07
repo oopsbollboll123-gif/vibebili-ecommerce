@@ -29,6 +29,8 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
   // Form viết đánh giá mới
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [newRating, setNewRating] = useState(5);
+  const [newReviewName, setNewReviewName] = useState('');
+  const [newReviewImage, setNewReviewImage] = useState('');
   const [newComment, setNewComment] = useState('');
   const [newHeight, setNewHeight] = useState('1m62');
   const [newWeight, setNewWeight] = useState('50kg');
@@ -77,6 +79,25 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
     setLoading(true);
     const targetId = productId || 1;
 
+    // Tìm sản phẩm trong localStorage trước nếu có
+    let localProd = null;
+    try {
+      const savedProds = localStorage.getItem('vibebili_custom_products');
+      if (savedProds) {
+        const parsed = JSON.parse(savedProds);
+        localProd = parsed.find(p => p.id == targetId);
+      }
+    } catch {}
+
+    // Đọc đánh giá đã lưu trong localStorage cho sản phẩm này
+    let localReviews = [];
+    try {
+      const savedRevs = localStorage.getItem('vibebili_product_reviews_' + targetId);
+      if (savedRevs) {
+        localReviews = JSON.parse(savedRevs);
+      }
+    } catch {}
+
     // Tải thông tin sản phẩm
     productAPI.getById(targetId)
       .then(res => {
@@ -85,94 +106,76 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
           const colors = d.options?.find(o => o.name.toLowerCase().includes('màu'))?.values?.map(name => ({
             name,
             image: d.main_image
-          })) || fallbackProduct.colors;
-          const sizes = d.options?.find(o => o.name.toLowerCase().includes('cỡ') || o.name.toLowerCase().includes('size') || o.name.toLowerCase().includes('đầu'))?.values || fallbackProduct.sizes;
-          const lengths = d.options?.find(o => o.name.toLowerCase().includes('dài'))?.values || fallbackProduct.hairLengths;
+          })) || (d.main_image ? [{ name: 'Tiêu chuẩn', image: d.main_image }] : []);
+          const sizes = d.options?.find(o => o.name.toLowerCase().includes('cỡ') || o.name.toLowerCase().includes('size') || o.name.toLowerCase().includes('đầu'))?.values || ['Tiêu chuẩn'];
+          const lengths = d.options?.find(o => o.name.toLowerCase().includes('dài'))?.values || [];
 
           setProduct({
             ...d,
-            colors,
+            colors: colors.length > 0 ? colors : [{ name: 'Mặc định', image: d.main_image }],
             sizes,
             hairLengths: lengths
           });
-          setSelectedColor(colors[0]?.name || '');
-          setSelectedSize(sizes[0] || '');
+          setSelectedColor(colors[0]?.name || 'Mặc định');
+          setSelectedSize(sizes[0] || 'Tiêu chuẩn');
           setSelectedLength(lengths?.[0] || '');
+        } else if (localProd) {
+          const colors = localProd.options?.find(o => o.name.toLowerCase().includes('màu'))?.values?.map(name => ({
+            name,
+            image: localProd.main_image || localProd.image
+          })) || [{ name: 'Tiêu chuẩn', image: localProd.main_image || localProd.image }];
+
+          setProduct({
+            ...localProd,
+            colors,
+            sizes: ['Tiêu chuẩn']
+          });
+          setSelectedColor(colors[0]?.name || 'Tiêu chuẩn');
+          setSelectedSize('Tiêu chuẩn');
         }
         setLoading(false);
       })
       .catch(() => {
         if (isMounted) {
-          setProduct(fallbackProduct);
-          setSelectedColor(fallbackProduct.colors[0]?.name || '');
-          setSelectedSize(fallbackProduct.sizes[0] || '');
-          setSelectedLength(fallbackProduct.hairLengths[0] || '');
+          if (localProd) {
+            const colors = localProd.options?.find(o => o.name.toLowerCase().includes('màu'))?.values?.map(name => ({
+              name,
+              image: localProd.main_image || localProd.image
+            })) || [{ name: 'Tiêu chuẩn', image: localProd.main_image || localProd.image }];
+
+            setProduct({
+              ...localProd,
+              colors,
+              sizes: ['Tiêu chuẩn']
+            });
+            setSelectedColor(colors[0]?.name || 'Tiêu chuẩn');
+            setSelectedSize('Tiêu chuẩn');
+          } else {
+            setProduct(fallbackProduct);
+            setSelectedColor(fallbackProduct.colors[0]?.name || '');
+            setSelectedSize(fallbackProduct.sizes[0] || '');
+            setSelectedLength(fallbackProduct.hairLengths[0] || '');
+          }
           setLoading(false);
         }
       });
 
-    // Tải danh sách đánh giá từ API
+    // Tải danh sách đánh giá từ API kết hợp localStorage
     productAPI.getReviews(targetId)
       .then(res => {
-        if (isMounted && res.success && res.data) {
-          setReviews(res.data);
+        if (isMounted) {
+          let list = (res.success && Array.isArray(res.data)) ? res.data : [];
+          if (localReviews.length > 0) {
+            const apiIds = new Set(list.map(r => r.id));
+            const newLocal = localReviews.filter(r => !apiIds.has(r.id));
+            list = [...newLocal, ...list];
+          }
+          setReviews(list);
         }
       })
       .catch(() => {
         if (isMounted) {
-          // Fallback reviews mẫu
-          setReviews([
-            {
-              id: 1,
-              product_id: targetId,
-              user_name: 'Nguyễn Mai Phương',
-              avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80',
-              rating: 5,
-              date: '2026-10-28',
-              color: 'Nâu Sô-cô-la',
-              size: 'Size M',
-              height: '1m62',
-              weight: '49kg',
-              fit: 'Chuẩn size',
-              comment: 'Tóc cực kỳ mềm mượt, không bóng giả lộ liễu tí nào! Đội đi làm cả ngày mà không bị bí nóng nhờ lớp lưới ren thoáng khí. Tặng kèm lưới trùm đầu xịn xò 10/10.',
-              images: [
-                'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=400&q=80'
-              ],
-              helpful_count: 24
-            },
-            {
-              id: 2,
-              product_id: targetId,
-              user_name: 'Trần Bảo Ngọc',
-              avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80',
-              rating: 5,
-              date: '2026-10-25',
-              color: 'Đen Tự Nhiên',
-              size: 'Size M',
-              height: '1m58',
-              weight: '47kg',
-              fit: 'Chuẩn size',
-              comment: 'Uốn nhiệt 160 độ vẫn giữ nếp rất đẹp, chải tóc không bị rụng tơ. Đóng gói hộp cứng sang trọng như mua ở mall, giao nhanh 2h tại Sài Gòn!',
-              images: [],
-              helpful_count: 18
-            },
-            {
-              id: 3,
-              product_id: targetId,
-              user_name: 'Lê Hoàng Yến',
-              avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-              rating: 4,
-              date: '2026-10-21',
-              color: 'Xám Khói',
-              size: 'Size S',
-              height: '1m55',
-              weight: '44kg',
-              fit: 'Hơi chật',
-              comment: 'Màu xám khói ở ngoài siêu cháy, bắt mắt cực kỳ. Đầu mình hơi tròn nên size S hơi ôm sát một xíu, ai chu vi đầu từ 54cm nên chọn size M nha. Còn lại chất lượng tóc 10/10.',
-              images: [],
-              helpful_count: 12
-            }
-          ]);
+          setReviews(localReviews);
         }
       });
 
@@ -210,67 +213,63 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
     if (!newComment.trim()) return;
 
     setIsSubmittingReview(true);
+    const authorName = (newReviewName.trim() || user?.name || 'Khách hàng VibeBili');
+    const reviewImages = newReviewImage.trim() ? [newReviewImage.trim()] : [];
+
+    const newLocalReview = {
+      id: Date.now(),
+      product_id: activeProduct.id,
+      user_name: authorName,
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+      rating: Number(newRating) || 5,
+      date: 'Hôm nay',
+      color: selectedColor || 'Tiêu chuẩn',
+      size: selectedSize || 'Tiêu chuẩn',
+      height: newHeight,
+      weight: newWeight,
+      fit: newFit,
+      comment: newComment.trim(),
+      images: reviewImages,
+      helpful_count: 0
+    };
+
     try {
       const reviewPayload = {
-        user_name: user?.name || 'Khách hàng VibeBili',
-        rating: newRating,
+        user_name: authorName,
+        rating: Number(newRating) || 5,
         color: selectedColor || 'Tiêu chuẩn',
-        size: selectedSize || 'Size M',
+        size: selectedSize || 'Tiêu chuẩn',
         height: newHeight,
         weight: newWeight,
         fit: newFit,
         comment: newComment.trim(),
-        images: []
+        images: reviewImages
       };
 
-      const res = await productAPI.createReview(activeProduct.id, reviewPayload);
-      if (res.success && res.data) {
-        setReviews([res.data, ...reviews]);
-      } else {
-        // Local fallback
-        const newLocalReview = {
-          id: Date.now(),
-          product_id: activeProduct.id,
-          user_name: user?.name || 'Khách hàng VibeBili',
-          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-          rating: newRating,
-          date: 'Hôm nay',
-          color: selectedColor || 'Mặc định',
-          size: selectedSize || 'Size M',
-          height: newHeight,
-          weight: newWeight,
-          fit: newFit,
-          comment: newComment.trim(),
-          images: [],
-          helpful_count: 0
-        };
-        setReviews([newLocalReview, ...reviews]);
-      }
+      const res = await productAPI.createReview(activeProduct.id, reviewPayload).catch(() => null);
+      const createdItem = (res && res.success && res.data) ? res.data : newLocalReview;
 
-      setReviewSuccessMsg('Cảm ơn bạn! Đánh giá đã được ghi nhận và hiển thị ngay trên hệ thống.');
+      const updated = [createdItem, ...reviews];
+      setReviews(updated);
+
+      // Lưu trữ đánh giá vào localStorage theo ID sản phẩm
+      try {
+        localStorage.setItem('vibebili_product_reviews_' + activeProduct.id, JSON.stringify(updated));
+      } catch {}
+
+      setReviewSuccessMsg('Cảm ơn bạn! Đánh giá đã được ghi nhận và hiển thị ngay trên sản phẩm.');
       setNewComment('');
+      setNewReviewName('');
+      setNewReviewImage('');
       setShowReviewForm(false);
       setTimeout(() => setReviewSuccessMsg(''), 4000);
     } catch (err) {
       console.warn('Lỗi gửi review:', err);
-      // Vẫn add local review để khách trải nghiệm
-      const newLocalReview = {
-        id: Date.now(),
-        product_id: activeProduct.id,
-        user_name: user?.name || 'Khách hàng VibeBili',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-        rating: newRating,
-        date: 'Hôm nay',
-        color: selectedColor || 'Mặc định',
-        size: selectedSize || 'Size M',
-        height: newHeight,
-        weight: newWeight,
-        fit: newFit,
-        comment: newComment.trim(),
-        images: [],
-        helpful_count: 0
-      };
-      setReviews([newLocalReview, ...reviews]);
+      const updated = [newLocalReview, ...reviews];
+      setReviews(updated);
+      try {
+        localStorage.setItem('vibebili_product_reviews_' + activeProduct.id, JSON.stringify(updated));
+      } catch {}
       setReviewSuccessMsg('Cảm ơn bạn! Đánh giá đã được ghi nhận.');
       setNewComment('');
       setShowReviewForm(false);
@@ -708,23 +707,38 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
             </p>
 
             <form onSubmit={handleSubmitReview} className="space-y-4">
-              {/* Chọn số sao */}
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Chất lượng tổng thể:</label>
-                <div className="flex items-center space-x-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      type="button"
-                      key={star}
-                      onClick={() => setNewRating(star)}
-                      className="text-2xl transition-transform hover:scale-110 focus:outline-none"
-                    >
-                      <span className={star <= newRating ? 'text-amber-400' : 'text-gray-300'}>★</span>
-                    </button>
-                  ))}
-                  <span className="text-xs font-extrabold text-gray-700 ml-2">
-                    {newRating === 5 ? 'Tuyệt vời (5/5)' : newRating === 4 ? 'Rất hài lòng (4/5)' : `${newRating}/5`}
-                  </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Tên người đánh giá */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">👤 Tên người đánh giá (*)</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="VD: Nguyễn Mai Phương, Bảo Ngọc..."
+                    value={newReviewName}
+                    onChange={(e) => setNewReviewName(e.target.value)}
+                    className="w-full px-3.5 py-2 border border-gray-300 rounded-xl text-xs bg-white focus:outline-none focus:border-black"
+                  />
+                </div>
+
+                {/* Chọn số sao */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">⭐ Chất lượng tổng thể:</label>
+                  <div className="flex items-center space-x-2 py-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        type="button"
+                        key={star}
+                        onClick={() => setNewRating(star)}
+                        className="text-2xl transition-transform hover:scale-110 focus:outline-none"
+                      >
+                        <span className={star <= newRating ? 'text-amber-400' : 'text-gray-300'}>★</span>
+                      </button>
+                    ))}
+                    <span className="text-xs font-extrabold text-gray-700 ml-2">
+                      {newRating === 5 ? 'Tuyệt vời (5/5)' : newRating === 4 ? 'Rất hài lòng (4/5)' : `${newRating}/5`}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -766,9 +780,32 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
                 </div>
               </div>
 
+              {/* Ảnh đính kèm đánh giá */}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">📸 Hình ảnh thực tế (URL link ảnh)</label>
+                <input
+                  type="url"
+                  placeholder="Dán link ảnh feedback (VD: https://images.unsplash.com/... hoặc link ảnh bất kỳ)"
+                  value={newReviewImage}
+                  onChange={(e) => setNewReviewImage(e.target.value)}
+                  className="w-full px-3.5 py-2 border border-gray-300 rounded-xl text-xs bg-white focus:outline-none focus:border-black"
+                />
+                {newReviewImage.trim() && (
+                  <div className="mt-2 flex items-center space-x-2">
+                    <img
+                      src={newReviewImage.trim()}
+                      alt="Ảnh review xem trước"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      className="w-12 h-12 rounded-lg object-cover border border-gray-200"
+                    />
+                    <span className="text-[10px] text-green-600 font-bold">✓ Ảnh review hợp lệ</span>
+                  </div>
+                )}
+              </div>
+
               {/* Nội dung đánh giá */}
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Cảm nhận chi tiết</label>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Cảm nhận chi tiết (*)</label>
                 <textarea
                   rows="3"
                   required
@@ -803,7 +840,9 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 my-6 items-center bg-gray-50/70 p-6 rounded-3xl border border-gray-200">
           <div className="md:col-span-4 text-center md:text-left border-b md:border-b-0 md:border-r border-gray-200 pb-4 md:pb-0 md:pr-6">
             <div className="text-4xl font-black text-gray-900">
-              4.9 <span className="text-lg text-gray-400 font-normal">/ 5</span>
+              {reviews.length > 0
+                ? (reviews.reduce((acc, r) => acc + (Number(r.rating) || 5), 0) / reviews.length).toFixed(1)
+                : (activeProduct.rating || '5.0')} <span className="text-lg text-gray-400 font-normal">/ 5</span>
             </div>
             <div className="flex items-center justify-center md:justify-start space-x-1 my-1.5">
               {[1, 2, 3, 4, 5].map((s) => (

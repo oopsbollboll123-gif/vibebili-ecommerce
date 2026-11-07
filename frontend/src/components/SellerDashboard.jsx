@@ -13,7 +13,7 @@ import {
   UserIcon
 } from './Icons';
 
-function SellerDashboard({ onNavigateHome, onNavigateAuth }) {
+function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
   const { user, isAuthenticated, isSeller, upgradeToSeller } = useAuth();
 
   // Navigation tabs trong Seller Center:
@@ -40,19 +40,22 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth }) {
   const [onboardingError, setOnboardingError] = useState('');
   const [onboardingSuccess, setOnboardingSuccess] = useState('');
 
-  // Form thêm sản phẩm mới kèm upload ảnh thực tế đa góc
+  // Form thêm sản phẩm mới (Đã dọn sạch ảnh mặc định cũ, cho phép chọn ảnh linh hoạt)
+  const [imageInputMode, setImageInputMode] = useState('url'); // 'url' | 'upload'
   const [newProduct, setNewProduct] = useState({
     name: '',
     category: 'Tóc Giả Cao Cấp',
     price: '',
+    original_price: '',
     stock: '50',
-    color: 'Nâu Hạt Dẻ Tự Nhiên',
-    size: 'Size M (55 - 57cm)',
+    color: 'Tiêu chuẩn',
+    size: 'Tiêu chuẩn',
     hairLength: '60cm',
-    fiberType: 'Tóc thật 100% Virgin Human Hair',
-    image: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=600&q=80',
+    fiberType: 'Sợi Tơ Nhiệt Cao Cấp',
+    image: '', // Không để ảnh mặc định của AI nữa!
+    imageUrlInput: '',
     angleImages: [],
-    description: 'Chịu nhiệt an toàn 180°C - 220°C, phom tóc ôm sát đường chân tóc tự nhiên.'
+    description: ''
   });
 
   // State Hẹn Giờ Lấy Hàng (Pickup Scheduling)
@@ -67,13 +70,15 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth }) {
   const [bulkData, setBulkData] = useState([]);
   const [bulkStatus, setBulkStatus] = useState('');
 
-  // Danh sách sản phẩm
-  const [products, setProducts] = useState([
-    { id: 1, name: "Tóc giả nữ nguyên đầu xoăn sóng nước 60cm", category: "Tóc Giả Cao Cấp", price: 350000, stock: 45, status: "Đang bán", image: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=300&q=80" },
-    { id: 2, name: "Tóc giả Bob ngắn uốn cụp Hàn Quốc", category: "Tóc Giả Cao Cấp", price: 280000, stock: 50, status: "Đang bán", image: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=300&q=80" },
-    { id: 3, name: "Áo thun croptop Y2K Cyberpunk", category: "Thời Trang Nữ", price: 169000, stock: 120, status: "Đang bán", image: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=300&q=80" },
-    { id: 4, name: "Đầm tiểu thư vải dạ tweed dáng dài", category: "Thời Trang Nữ", price: 420000, stock: 25, status: "Đang bán", image: "https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=300&q=80" }
-  ]);
+  // Danh sách sản phẩm (Bắt đầu trống để người bán tự nhập sản phẩm thực tế của mình)
+  const [products, setProducts] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vibebili_custom_products');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // Danh sách đơn hàng
   const [orders, setOrders] = useState([
@@ -119,19 +124,37 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth }) {
     let isMounted = true;
     productAPI.getAll()
       .then(res => {
-        if (isMounted && res.success && res.data?.length > 0) {
-          setProducts(res.data.map(p => ({
+        if (isMounted) {
+          let list = (res.success && res.data) ? res.data.map(p => ({
             id: p.id,
             name: p.name,
             category: p.category_name || 'Tóc Giả Cao Cấp',
-            price: Number(p.price || 299000),
-            stock: p.variants?.[0]?.stock || 35,
-            status: "Đang bán",
-            image: p.image || p.main_image || "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=300&q=80"
-          })));
+            price: Number(p.price || 0),
+            stock: p.variants?.[0]?.stock || p.stock || 20,
+            status: p.status || "Đang bán",
+            image: p.main_image || p.image || ""
+          })) : [];
+
+          // Kết hợp sản phẩm lưu trong localStorage
+          try {
+            const saved = localStorage.getItem('vibebili_custom_products');
+            if (saved) {
+              const localItems = JSON.parse(saved);
+              const existingIds = new Set(list.map(x => x.id));
+              const newLocals = localItems.filter(x => !existingIds.has(x.id));
+              list = [...newLocals, ...list];
+            }
+          } catch {}
+
+          setProducts(list);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        try {
+          const saved = localStorage.getItem('vibebili_custom_products');
+          if (saved) setProducts(JSON.parse(saved));
+        } catch {}
+      });
 
     orderAPI.getAllOrders()
       .then(res => {
@@ -189,7 +212,7 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth }) {
     }
   };
 
-  // Upload ảnh thực tế từ máy tính
+  // Upload ảnh thực tế từ máy tính (FileReader Base64)
   const handleImageFileChange = (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
@@ -198,18 +221,19 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth }) {
       const reader = new FileReader();
       reader.onloadend = () => {
         if (index === 0) {
-          setNewProduct(prev => ({ ...prev, image: reader.result }));
+          setNewProduct(prev => ({ ...prev, image: reader.result, imageUrlInput: '' }));
+        } else {
+          setNewProduct(prev => ({
+            ...prev,
+            angleImages: [...prev.angleImages, reader.result]
+          }));
         }
-        setNewProduct(prev => ({
-          ...prev,
-          angleImages: [...prev.angleImages, reader.result]
-        }));
       };
       reader.readAsDataURL(file);
     });
   };
 
-  // Thêm sản phẩm mới
+  // Thêm sản phẩm mới (Hỗ trợ URL và Upload ảnh, lưu DB & localStorage)
   const handleAddProductSubmit = async (e) => {
     e.preventDefault();
     if (!newProduct.name || !newProduct.price) {
@@ -217,34 +241,78 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth }) {
       return;
     }
 
+    const finalImage = (newProduct.image || newProduct.imageUrlInput || '').trim();
+    if (!finalImage) {
+      if (!confirm('Bạn chưa chèn ảnh đại diện cho sản phẩm. Bạn có muốn tiếp tục đăng không?')) {
+        return;
+      }
+    }
+
     setLoading(true);
     try {
+      const catId = newProduct.category === 'Tóc Giả Cao Cấp' ? 1 : (newProduct.category === 'Thời Trang Nam' ? 6 : 2);
       const payload = {
-        name: newProduct.name,
+        name: newProduct.name.trim(),
         price: Number(newProduct.price),
+        original_price: Number(newProduct.original_price || newProduct.price * 1.3),
         stock: Number(newProduct.stock || 20),
-        category_id: newProduct.category === 'Tóc Giả Cao Cấp' ? 1 : 2,
-        description: newProduct.description,
-        image: newProduct.image,
+        category_id: catId,
+        category_name: newProduct.category,
+        description: newProduct.description || '',
+        main_image: finalImage,
+        image: finalImage,
+        angle_images: newProduct.angleImages,
         options: [
-          { name: 'Màu sắc', values: [newProduct.color] },
-          { name: 'Kích cỡ', values: [newProduct.size] }
+          { name: 'Màu sắc', values: [newProduct.color || 'Tiêu chuẩn'] },
+          { name: 'Kích cỡ', values: [newProduct.size || 'Tiêu chuẩn'] }
         ]
       };
 
-      await productAPI.create(payload);
+      const res = await productAPI.create(payload).catch(() => null);
+
+      const newId = res?.productId || (products.length > 0 ? Math.max(...products.map(p => p.id || 0)) + 1 : Date.now());
 
       const created = {
-        id: products.length + 1,
-        name: newProduct.name,
+        id: newId,
+        name: newProduct.name.trim(),
         category: newProduct.category,
+        category_name: newProduct.category,
+        category_id: catId,
         price: Number(newProduct.price),
+        original_price: Number(newProduct.original_price || newProduct.price * 1.3),
         stock: Number(newProduct.stock || 20),
         status: "Đang bán",
-        image: newProduct.image
+        image: finalImage,
+        main_image: finalImage,
+        rating: 5.0,
+        sold_count: 0,
+        options: payload.options,
+        description: newProduct.description || ''
       };
 
-      setProducts([created, ...products]);
+      const updated = [created, ...products];
+      setProducts(updated);
+      try {
+        localStorage.setItem('vibebili_custom_products', JSON.stringify(updated));
+      } catch {}
+
+      // Reset form sau khi thêm thành công
+      setNewProduct({
+        name: '',
+        category: 'Tóc Giả Cao Cấp',
+        price: '',
+        original_price: '',
+        stock: '50',
+        color: 'Tiêu chuẩn',
+        size: 'Tiêu chuẩn',
+        hairLength: '60cm',
+        fiberType: 'Sợi Tơ Nhiệt Cao Cấp',
+        image: '',
+        imageUrlInput: '',
+        angleImages: [],
+        description: ''
+      });
+
       setIsAddModalOpen(false);
       alert('🎉 Đăng bán sản phẩm mới thành công lên hệ thống VibeBili.vn!');
     } catch (err) {
@@ -762,51 +830,86 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {products.map((p) => (
-                    <tr key={p.id} className="hover:bg-gray-50/80 transition">
-                      <td className="p-3.5 font-mono font-bold text-gray-600">#SKU-{p.id.toString().padStart(4, '0')}</td>
-                      <td className="p-3.5">
-                        <div className="flex items-center space-x-3">
-                          <img
-                            src={p.image}
-                            alt={p.name}
-                            className="w-12 h-12 rounded-xl object-cover border border-gray-200 shadow-sm"
-                          />
-                          <div>
-                            <div className="font-bold text-gray-900 max-w-sm">{p.name}</div>
-                            <div className="text-[10px] text-gray-400">Tự động kết nối mô hình Thử Đồ AI 2-in-1</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-3.5">
-                        <span className="bg-gray-100 text-gray-800 px-2.5 py-1 rounded-full text-[10px] font-bold">
-                          {p.category}
-                        </span>
-                      </td>
-                      <td className="p-3.5 font-black text-red-600 text-sm">
-                        {p.price.toLocaleString()} đ
-                      </td>
-                      <td className="p-3.5 font-bold text-gray-800">{p.stock} cái</td>
-                      <td className="p-3.5">
-                        <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-bold text-[10px]">
-                          {p.status}
-                        </span>
-                      </td>
-                      <td className="p-3.5 text-center">
+                  {products.length === 0 ? (
+                    <tr>
+                      <td colSpan="7" className="p-10 text-center text-gray-500">
+                        <div className="text-4xl mb-2">📦</div>
+                        <div className="font-bold text-sm text-gray-700">Chưa có sản phẩm nào trong gian hàng</div>
+                        <div className="text-xs text-gray-400 mt-1 mb-4">Hãy bấm "+ Thêm Sản Phẩm Mới" để tải lên hình ảnh và đăng bán sản phẩm đầu tiên!</div>
                         <button
-                          onClick={() => {
-                            if (confirm(`Bạn có chắc muốn xóa SKU #${p.id}?`)) {
-                              productAPI.delete(p.id).catch(() => {});
-                              setProducts(products.filter(item => item.id !== p.id));
-                            }
-                          }}
-                          className="text-red-500 hover:text-red-700 font-bold hover:underline"
+                          onClick={() => setIsAddModalOpen(true)}
+                          className="bg-black hover:bg-neutral-800 text-white text-xs font-bold px-5 py-2 rounded-full transition shadow"
                         >
-                          Xóa SKU
+                          + Thêm Sản Phẩm Ngay
                         </button>
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    products.map((p) => (
+                      <tr key={p.id} className="hover:bg-gray-50/80 transition">
+                        <td className="p-3.5 font-mono font-bold text-gray-600">#SKU-{p.id.toString().padStart(4, '0')}</td>
+                        <td className="p-3.5">
+                          <div className="flex items-center space-x-3">
+                            <img
+                              src={p.image || p.main_image || 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=300&q=80'}
+                              alt={p.name}
+                              onError={(e) => {
+                                e.currentTarget.onerror = null;
+                                e.currentTarget.src = 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=300&q=80';
+                              }}
+                              className="w-12 h-12 rounded-xl object-cover border border-gray-200 shadow-sm flex-shrink-0"
+                            />
+                            <div>
+                              <div className="font-bold text-gray-900 max-w-sm line-clamp-1">{p.name}</div>
+                              <div className="text-[10px] text-gray-400">Tự động kết nối mô hình Thử Đồ AI 2-in-1</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3.5">
+                          <span className="bg-gray-100 text-gray-800 px-2.5 py-1 rounded-full text-[10px] font-bold">
+                            {p.category || p.category_name}
+                          </span>
+                        </td>
+                        <td className="p-3.5 font-black text-red-600 text-sm">
+                          {Number(p.price || 0).toLocaleString()} đ
+                        </td>
+                        <td className="p-3.5 font-bold text-gray-800">{p.stock || 20} cái</td>
+                        <td className="p-3.5">
+                          <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-bold text-[10px]">
+                            {p.status || 'Đang bán'}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-center">
+                          <div className="flex items-center justify-center space-x-2">
+                            {onSelectProduct && (
+                              <button
+                                onClick={() => onSelectProduct(p.id)}
+                                className="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-bold px-2.5 py-1 rounded-lg text-[11px] transition"
+                                title="Xem sản phẩm và viết đánh giá khách hàng"
+                              >
+                                ⭐ Viết Đánh Giá
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                if (confirm(`Bạn có chắc muốn xóa SKU #${p.id}?`)) {
+                                  productAPI.delete(p.id).catch(() => {});
+                                  const remaining = products.filter(item => item.id !== p.id);
+                                  setProducts(remaining);
+                                  try {
+                                    localStorage.setItem('vibebili_custom_products', JSON.stringify(remaining));
+                                  } catch {}
+                                }
+                              }}
+                              className="text-red-500 hover:text-red-700 font-bold hover:underline px-2 py-1 text-[11px]"
+                            >
+                              Xóa SKU
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1436,7 +1539,9 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth }) {
                   >
                     <option value="Tóc Giả Cao Cấp">Tóc Giả Cao Cấp</option>
                     <option value="Thời Trang Nữ">Thời Trang Nữ</option>
+                    <option value="Thời Trang Nam">Thời Trang Nam</option>
                     <option value="Outfit x Hairstyle Combo">Outfit x Hairstyle Combo</option>
+                    <option value="Tóc Giả Nguyên Đầu">Tóc Giả Nguyên Đầu</option>
                   </select>
                 </div>
 
@@ -1485,27 +1590,128 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth }) {
                 </div>
               </div>
 
-              {/* Tải Lên Ảnh Minh Họa Thực Tế */}
-              <div className="border border-gray-200 rounded-2xl p-4 bg-gray-50/50 space-y-3">
-                <label className="block font-bold text-gray-800">Ảnh Minh Họa Thực Tế (Upload từ máy tính)</label>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={handleImageFileChange}
-                  className="text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-black file:text-white hover:file:bg-neutral-800 cursor-pointer"
-                />
+              {/* KHU VỰC CHÈN ẢNH SẢN PHẨM: HỖ TRỢ DÁN URL HOẶC UPLOAD TỪ MÁY */}
+              <div className="border-2 border-dashed border-gray-300 rounded-2xl p-4 bg-gray-50/70 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-gray-900 text-xs uppercase tracking-wide">
+                    🖼️ Hình Ảnh Sản Phẩm (Bắt Buộc)
+                  </label>
+                  {/* Chuyển đổi phương thức chèn ảnh */}
+                  <div className="flex bg-gray-200 p-0.5 rounded-lg text-[11px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setImageInputMode('url')}
+                      className={`px-3 py-1 rounded-md transition ${
+                        imageInputMode === 'url' ? 'bg-white text-black shadow-sm' : 'text-gray-600 hover:text-black'
+                      }`}
+                    >
+                      🔗 Dán Link URL
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImageInputMode('upload')}
+                      className={`px-3 py-1 rounded-md transition ${
+                        imageInputMode === 'upload' ? 'bg-white text-black shadow-sm' : 'text-gray-600 hover:text-black'
+                      }`}
+                    >
+                      📁 Tải Từ Máy Tính
+                    </button>
+                  </div>
+                </div>
 
-                {newProduct.angleImages.length > 0 && (
-                  <div className="flex gap-2 overflow-x-auto pt-2">
-                    {newProduct.angleImages.map((img, idx) => (
-                      <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border border-gray-300 shadow-sm flex-shrink-0">
-                        <img src={img} alt="Ảnh mẫu" className="w-full h-full object-cover" />
-                        <span className="absolute bottom-0 inset-x-0 bg-black/60 text-[8px] text-white text-center font-bold">
-                          Góc {idx + 1}
-                        </span>
+                {/* Chế độ 1: Nhập link ảnh */}
+                {imageInputMode === 'url' ? (
+                  <div className="space-y-2">
+                    <input
+                      type="url"
+                      placeholder="Dán đường link ảnh trực tiếp (Vd: https://images.unsplash.com/... hoặc link ảnh bất kỳ)"
+                      value={newProduct.imageUrlInput || (newProduct.image && !newProduct.image.startsWith('data:') ? newProduct.image : '')}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNewProduct(prev => ({
+                          ...prev,
+                          imageUrlInput: val,
+                          image: val
+                        }));
+                      }}
+                      className="w-full border border-gray-300 rounded-xl px-3 py-2 text-xs bg-white focus:outline-none focus:border-black font-mono"
+                    />
+                    <p className="text-[10px] text-gray-500">
+                      💡 Mẹo: Bạn có thể sao chép địa chỉ hình ảnh từ bất kỳ trang web nào hoặc Google Images rồi dán vào đây.
+                    </p>
+                  </div>
+                ) : (
+                  /* Chế độ 2: Upload file từ máy */
+                  <div className="space-y-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleImageFileChange}
+                      className="w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-black file:text-white hover:file:bg-neutral-800 cursor-pointer bg-white p-2 border border-gray-200 rounded-xl"
+                    />
+                    <p className="text-[10px] text-gray-500">
+                      Hỗ trợ định dạng JPG, PNG, WEBP. Ảnh đầu tiên sẽ làm ảnh bìa chính thức.
+                    </p>
+                  </div>
+                )}
+
+                {/* KHUNG XEM TRƯỚC ẢNH THỰC TẾ (LIVE PREVIEW) */}
+                <div className="bg-white border border-gray-200 rounded-xl p-3 flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    {newProduct.image || newProduct.imageUrlInput ? (
+                      <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-gray-300 shadow-sm bg-gray-100 flex-shrink-0">
+                        <img
+                          src={newProduct.image || newProduct.imageUrlInput}
+                          alt="Xem trước ảnh sản phẩm"
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=300&q=80';
+                          }}
+                          className="w-full h-full object-cover"
+                        />
                       </div>
-                    ))}
+                    ) : (
+                      <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400 bg-gray-50 flex-shrink-0 text-center p-1">
+                        <span className="text-xl">📷</span>
+                        <span className="text-[9px] mt-0.5">Chưa có ảnh</span>
+                      </div>
+                    )}
+                    <div>
+                      <div className="text-xs font-bold text-gray-800">
+                        {newProduct.image || newProduct.imageUrlInput ? '✓ Đã nhận ảnh sản phẩm' : 'Chưa có ảnh đại diện'}
+                      </div>
+                      <div className="text-[10px] text-gray-500 max-w-xs truncate">
+                        {newProduct.image ? (newProduct.image.startsWith('data:') ? 'Ảnh tải lên từ máy tính' : newProduct.image) : 'Vui lòng dán URL hoặc chọn file ảnh ở trên'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {(newProduct.image || newProduct.imageUrlInput) && (
+                    <button
+                      type="button"
+                      onClick={() => setNewProduct(prev => ({ ...prev, image: '', imageUrlInput: '', angleImages: [] }))}
+                      className="text-red-500 hover:text-red-700 text-xs font-bold border border-red-200 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition"
+                    >
+                      ✕ Xóa ảnh này
+                    </button>
+                  )}
+                </div>
+
+                {/* Danh sách ảnh phụ / góc chụp khác nếu có */}
+                {newProduct.angleImages.length > 0 && (
+                  <div className="pt-2">
+                    <div className="text-[11px] font-bold text-gray-700 mb-1">Ảnh các góc bổ sung ({newProduct.angleImages.length}):</div>
+                    <div className="flex gap-2 overflow-x-auto">
+                      {newProduct.angleImages.map((img, idx) => (
+                        <div key={idx} className="relative w-14 h-14 rounded-lg overflow-hidden border border-gray-300 shadow-sm flex-shrink-0">
+                          <img src={img} alt="Góc chụp" className="w-full h-full object-cover" />
+                          <span className="absolute bottom-0 inset-x-0 bg-black/60 text-[8px] text-white text-center font-bold">
+                            Góc {idx + 1}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

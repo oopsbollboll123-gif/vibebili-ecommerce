@@ -69,50 +69,7 @@ function AdminPanel({ onNavigateHome, onNavigateLogin }) {
   ]);
 
   // 3. Danh sách sản phẩm chờ kiểm duyệt (Product Moderation)
-  const [pendingProducts, setPendingProducts] = useState([
-    {
-      id: 101,
-      seller_id: 2,
-      seller_name: "Wig Luxury Sài Gòn",
-      name: "Tóc Giả Ombre Khói Xanh Pastel 70cm Nữ Hoàng - Sợi Tơ Nhiệt Cao Cấp",
-      category_name: "Tóc Giả Cao Cấp",
-      price: 490000,
-      original_price: 650000,
-      main_image: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=600&q=80",
-      stock: 50,
-      sku: "WIG-OMB-BLU-70",
-      description: "Tóc giả lượn sóng chịu nhiệt cao đến 180 độ C, phối màu ombre khói xanh pastel xu hướng.",
-      submitted_date: "2026-11-02 14:30"
-    },
-    {
-      id: 102,
-      seller_id: 3,
-      seller_name: "Y2K Streetwear Boutique",
-      name: "Áo Thun Unisex Cyberpunk Graphic Acid Wash Form Boxy",
-      category_name: "Thời Trang Nam",
-      price: 295000,
-      original_price: 420000,
-      main_image: "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=600&q=80",
-      stock: 120,
-      sku: "TSHIRT-CYBER-BLK",
-      description: "Áo thun cotton 260GSM định lượng cao, hiệu ứng wash rách nhẹ phong cách Cyberpunk Y2K.",
-      submitted_date: "2026-11-02 16:15"
-    },
-    {
-      id: 103,
-      seller_id: 2,
-      seller_name: "Wig Luxury Sài Gòn",
-      name: "Combo Dạ Tiệc: Tóc Bob Bạch Kim x Váy Bodycon Cúp Ngực Tôn Dáng",
-      category_name: "Outfit x Hairstyle Combo",
-      price: 799000,
-      original_price: 1150000,
-      main_image: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=600&q=80",
-      stock: 25,
-      sku: "COMBO-BOB-WHITE",
-      description: "Set phối sẵn giữa tóc giả Bob bạch kim cá tính và đầm bodycon sang chảnh dạ tiệc.",
-      submitted_date: "2026-11-03 09:10"
-    }
-  ]);
+  const [pendingProducts, setPendingProducts] = useState([]);
 
   // 4. Danh sách Người bán chờ duyệt KYC
   const [pendingSellers, setPendingSellers] = useState([

@@ -129,6 +129,8 @@ const createProduct = async (req, res) => {
     seller_id,
     stock = 20,
     main_image,
+    image,
+    images,
     options = [],
     variants = []
   } = req.body;
@@ -142,7 +144,8 @@ const createProduct = async (req, res) => {
     });
   }
 
-  const defaultImg = main_image || 'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80';
+  // Lấy ảnh người dùng tải lên hoặc nhập URL - tuyệt đối không ghi đè nếu người dùng đã truyền ảnh
+  const defaultImg = main_image || image || (Array.isArray(images) && images[0]) || '';
 
   try {
     const [result] = await db.query(
@@ -168,15 +171,18 @@ const createProduct = async (req, res) => {
   } catch (error) {
     console.warn('[Create Product Fallback]: Lưu tạm vào Mock Store (' + error.message + ')');
 
+    const newId = mockData.products.length > 0 ? Math.max(...mockData.products.map(p => p.id || 0)) + 1 : 1;
+    const catName = category_id == 1 ? 'Tóc Giả Cao Cấp' : (category_id == 6 ? 'Thời Trang Nam' : 'Thời Trang Nữ');
+
     const newProd = {
-      id: mockData.products.length + 1,
+      id: newId,
       seller_id: sellerId,
-      seller_name: 'Wig Luxury Sài Gòn',
-      category_id: Number(category_id),
-      category_name: category_id == 1 ? 'Tóc Giả Cao Cấp' : 'Thời Trang Nữ',
+      seller_name: req.user?.shop_name || req.user?.name || 'VibeBili Boutique',
+      category_id: Number(category_id || 1),
+      category_name: req.body.category_name || catName,
       name,
-      slug: name.toLowerCase().replace(/\s+/g, '-'),
-      description,
+      slug: name.toLowerCase().replace(/[^a-z0-9]/gi, '-'),
+      description: description || '',
       price: Number(price),
       original_price: Number(original_price || price * 1.3),
       main_image: defaultImg,
@@ -184,7 +190,7 @@ const createProduct = async (req, res) => {
       sold_count: 0,
       is_hot: true,
       is_combo: false,
-      status: 'PENDING_APPROVAL',
+      status: 'Đang bán',
       options: options.length > 0 ? options : [
         { name: 'Phân loại', values: ['Tiêu chuẩn'] }
       ],
@@ -195,19 +201,18 @@ const createProduct = async (req, res) => {
           price: Number(price),
           original_price: Number(original_price || price * 1.3),
           stock: Number(stock),
-          title: 'Tiêu chuẩn'
+          title: 'Tiêu chuẩn',
+          image_url: defaultImg
         }
       ]
     };
 
-    // Đưa vào danh sách chờ kiểm duyệt (Pending Approval) để Admin duyệt trước khi public
-    if (mockData.pendingProducts) {
-      mockData.pendingProducts.unshift(newProd);
-    }
+    // Đưa ngay vào danh sách sản phẩm đang bán để hiển thị tức thì trên sàn
+    mockData.products.unshift(newProd);
 
     return res.status(201).json({
       success: true,
-      message: 'Sản phẩm đã được gửi duyệt (PENDING_APPROVAL)! Quản trị viên Moderator sẽ thẩm định nội dung trước khi hiển thị công khai trên sàn VibeBili.',
+      message: 'Đăng bán sản phẩm mới thành công lên hệ thống VibeBili!',
       productId: newProd.id,
       data: newProd
     });
@@ -226,20 +231,18 @@ const bulkCreateProducts = async (req, res) => {
 
   for (const item of items) {
     if (!item.name || !item.price) continue;
-    const catId = item.category?.includes('Thời Trang') ? 2 : 1;
-    const catName = catId === 2 ? 'Thời Trang Nữ' : 'Tóc Giả Cao Cấp';
-    const defaultImg = item.image || (catId === 1
-      ? 'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=600&q=80'
-      : 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=600&q=80');
+    const catId = item.category?.includes('Thời Trang Nam') ? 6 : (item.category?.includes('Thời Trang') ? 2 : 1);
+    const catName = catId === 6 ? 'Thời Trang Nam' : (catId === 2 ? 'Thời Trang Nữ' : 'Tóc Giả Cao Cấp');
+    const defaultImg = item.image || item.main_image || '';
 
     const newProd = {
-      id: mockData.products.length + 1,
+      id: mockData.products.length > 0 ? Math.max(...mockData.products.map(p => p.id || 0)) + 1 : 1,
       seller_id: sellerId,
-      seller_name: req.user?.shop_name || req.user?.name || 'Wig Luxury Sài Gòn',
+      seller_name: req.user?.shop_name || req.user?.name || 'VibeBili Shop',
       category_id: catId,
       category_name: catName,
       name: item.name,
-      slug: item.name.toLowerCase().replace(/\s+/g, '-'),
+      slug: item.name.toLowerCase().replace(/[^a-z0-9]/gi, '-'),
       description: item.description || 'Sản phẩm chính hãng đăng bán qua tính năng Bulk Upload.',
       price: Number(item.price),
       original_price: Number(item.original_price || item.price * 1.3),
@@ -248,6 +251,7 @@ const bulkCreateProducts = async (req, res) => {
       sold_count: 0,
       is_hot: true,
       is_combo: false,
+      status: 'Đang bán',
       options: [
         { name: 'Màu sắc', values: [item.color || 'Mặc định'] },
         { name: 'Kích cỡ', values: [item.size || 'Tiêu chuẩn'] }
@@ -259,7 +263,8 @@ const bulkCreateProducts = async (req, res) => {
           price: Number(item.price),
           original_price: Number(item.original_price || item.price * 1.3),
           stock: Number(item.stock || 50),
-          title: `${item.color || 'Mặc định'} / ${item.size || 'Tiêu chuẩn'}`
+          title: `${item.color || 'Mặc định'} / ${item.size || 'Tiêu chuẩn'}`,
+          image_url: defaultImg
         }
       ]
     };
@@ -373,6 +378,15 @@ const createProductReview = async (req, res) => {
   };
 
   mockData.reviews.unshift(newReview);
+
+  // Cập nhật rating và số lượt đánh giá cho sản phẩm trong mockData
+  const targetProd = mockData.products.find(p => p.id === prodId);
+  if (targetProd) {
+    const prodReviews = mockData.reviews.filter(r => r.product_id === prodId);
+    const avgRating = prodReviews.reduce((sum, r) => sum + Number(r.rating || 5), 0) / prodReviews.length;
+    targetProd.rating = Number(avgRating.toFixed(1));
+    targetProd.reviewsCount = prodReviews.length;
+  }
 
   return res.status(201).json({
     success: true,

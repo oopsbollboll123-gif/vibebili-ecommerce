@@ -73,7 +73,7 @@ function MainApp() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Load sản phẩm từ API
+  // Load sản phẩm từ API kết hợp đồng bộ localStorage
   const loadProducts = () => {
     setLoading(true);
     const params = {};
@@ -82,13 +82,59 @@ function MainApp() {
 
     productAPI.getAll(params)
       .then(res => {
-        if (res.success && res.data) {
-          setProducts(res.data);
+        let list = (res.success && Array.isArray(res.data)) ? [...res.data] : [];
+
+        // Đọc thêm sản phẩm người dùng đã tạo trong localStorage
+        try {
+          const saved = localStorage.getItem('vibebili_custom_products');
+          if (saved) {
+            const custom = JSON.parse(saved);
+            const existingIds = new Set(list.map(p => p.id));
+            const newCustom = custom.filter(p => !existingIds.has(p.id));
+            list = [...newCustom, ...list];
+          }
+        } catch {}
+
+        // Lọc theo danh mục nếu người dùng chọn
+        if (selectedCategory !== 'all') {
+          list = list.filter(p =>
+            p.category_name?.toLowerCase().includes(selectedCategory.toLowerCase()) ||
+            p.category_id == selectedCategory ||
+            p.slug?.includes(selectedCategory)
+          );
         }
+
+        // Lọc theo từ khóa tìm kiếm nếu có
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          list = list.filter(p =>
+            p.name?.toLowerCase().includes(q) ||
+            p.description?.toLowerCase().includes(q)
+          );
+        }
+
+        setProducts(list);
         setLoading(false);
       })
       .catch(err => {
-        console.warn('Lỗi gọi API products:', err);
+        console.warn('Lỗi gọi API products, đọc từ localStorage:', err);
+        try {
+          const saved = localStorage.getItem('vibebili_custom_products');
+          let list = saved ? JSON.parse(saved) : [];
+          if (selectedCategory !== 'all') {
+            list = list.filter(p =>
+              p.category_name?.toLowerCase().includes(selectedCategory.toLowerCase()) ||
+              p.category_id == selectedCategory
+            );
+          }
+          if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            list = list.filter(p => p.name?.toLowerCase().includes(q));
+          }
+          setProducts(list);
+        } catch {
+          setProducts([]);
+        }
         setLoading(false);
       });
   };
@@ -503,16 +549,26 @@ function MainApp() {
                 ))}
               </div>
             ) : products.length === 0 ? (
-              <div className="text-center py-20 bg-white rounded-3xl border border-vibe-border shadow-card px-8">
-                <div className="text-5xl mb-4">🔍</div>
-                <p className="text-vibe-ink font-semibold mb-1">Không tìm thấy sản phẩm nào</p>
-                <p className="text-vibe-muted text-sm mb-5">Thử tìm kiếm với từ khóa khác hoặc xem tất cả sản phẩm</p>
-                <button
-                  onClick={() => { setSelectedCategory('all'); setSearchQuery(''); loadProducts(); }}
-                  className="bg-vibe-ink text-white text-sm px-6 py-2.5 rounded-full font-semibold hover:bg-vibe-800 transition-colors"
-                >
-                  Xem tất cả sản phẩm
-                </button>
+              <div className="text-center py-20 bg-white rounded-3xl border border-vibe-border shadow-card px-8 max-w-lg mx-auto">
+                <div className="text-5xl mb-4">🛍️</div>
+                <p className="text-vibe-ink font-bold text-lg mb-1">Chưa có sản phẩm nào trên sàn</p>
+                <p className="text-vibe-muted text-sm mb-6">
+                  Toàn bộ các sản phẩm mẫu cũ đã được dọn sạch. Bạn có thể vào Kênh Người Bán để đăng tải sản phẩm và hình ảnh của riêng mình ngay!
+                </p>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                  <button
+                    onClick={() => { setSelectedCategory('all'); setSearchQuery(''); loadProducts(); }}
+                    className="w-full sm:w-auto bg-gray-100 hover:bg-gray-200 text-vibe-ink text-xs px-5 py-2.5 rounded-full font-bold transition"
+                  >
+                    Làm mới danh sách
+                  </button>
+                  <button
+                    onClick={() => { setCurrentView('seller'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className="w-full sm:w-auto bg-vibe-accent hover:bg-amber-700 text-white text-xs px-6 py-2.5 rounded-full font-bold transition shadow-card flex items-center justify-center space-x-1.5"
+                  >
+                    <span>🏪 Mở Kênh Người Bán & Đăng Sản Phẩm</span>
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
@@ -679,6 +735,11 @@ function MainApp() {
           <SellerDashboard 
             onNavigateHome={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
             onNavigateAuth={() => { setAuthInitialMode('login'); setCurrentView('login'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            onSelectProduct={(id) => {
+              setSelectedProductId(id);
+              setCurrentView('product-detail');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
           />
         )}
 
