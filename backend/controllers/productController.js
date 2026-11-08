@@ -174,22 +174,25 @@ const createProduct = async (req, res) => {
     const newId = mockData.products.length > 0 ? Math.max(...mockData.products.map(p => p.id || 0)) + 1 : 1;
     const catName = category_id == 1 ? 'Tóc Giả Cao Cấp' : (category_id == 6 ? 'Thời Trang Nam' : 'Thời Trang Nữ');
 
+    const isCombo = Boolean(req.body.is_combo || (req.body.category_name && req.body.category_name.toLowerCase().includes('combo')));
     const newProd = {
       id: newId,
       seller_id: sellerId,
       seller_name: req.user?.shop_name || req.user?.name || 'VibeBili Boutique',
       category_id: Number(category_id || 1),
       category_name: req.body.category_name || catName,
+      category: req.body.category_name || catName,
       name,
       slug: name.toLowerCase().replace(/[^a-z0-9]/gi, '-'),
       description: description || '',
       price: Number(price),
       original_price: Number(original_price || price * 1.3),
       main_image: defaultImg,
+      image: defaultImg,
       rating: 5.0,
       sold_count: 0,
       is_hot: true,
-      is_combo: false,
+      is_combo: isCombo,
       status: 'Đang bán',
       options: options.length > 0 ? options : [
         { name: 'Phân loại', values: ['Tiêu chuẩn'] }
@@ -231,8 +234,9 @@ const bulkCreateProducts = async (req, res) => {
 
   for (const item of items) {
     if (!item.name || !item.price) continue;
-    const catId = item.category?.includes('Thời Trang Nam') ? 6 : (item.category?.includes('Thời Trang') ? 2 : 1);
-    const catName = catId === 6 ? 'Thời Trang Nam' : (catId === 2 ? 'Thời Trang Nữ' : 'Tóc Giả Cao Cấp');
+    const isCombo = Boolean(item.is_combo || (item.category && item.category.toLowerCase().includes('combo')));
+    const catId = isCombo ? 3 : (item.category?.includes('Thời Trang Nam') ? 6 : (item.category?.includes('Thời Trang') ? 2 : 1));
+    const catName = isCombo ? 'Outfit x Hairstyle Combo' : (catId === 6 ? 'Thời Trang Nam' : (catId === 2 ? 'Thời Trang Nữ' : 'Tóc Giả Cao Cấp'));
     const defaultImg = item.image || item.main_image || item.link_anh || item.hinh_anh || '';
 
     const newProd = {
@@ -241,16 +245,18 @@ const bulkCreateProducts = async (req, res) => {
       seller_name: req.user?.shop_name || req.user?.name || 'VibeBili Shop',
       category_id: catId,
       category_name: catName,
+      category: catName,
       name: item.name,
       slug: item.name.toLowerCase().replace(/[^a-z0-9]/gi, '-'),
       description: item.description || 'Sản phẩm chính hãng đăng bán qua tính năng Bulk Upload.',
       price: Number(item.price),
       original_price: Number(item.original_price || item.price * 1.3),
       main_image: defaultImg,
+      image: defaultImg,
       rating: 5.0,
       sold_count: 0,
       is_hot: true,
-      is_combo: false,
+      is_combo: isCombo,
       status: 'Đang bán',
       options: [
         { name: 'Màu sắc', values: [item.color || 'Mặc định'] },

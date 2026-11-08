@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { DEFAULT_PRODUCT_IMAGE } from '../utils/productUtils';
 
 const CartContext = createContext();
 
@@ -40,11 +41,16 @@ export const SYSTEM_VOUCHERS = [
 ];
 
 export const CartProvider = ({ children }) => {
-  // Lấy dữ liệu giỏ hàng đã lưu trong LocalStorage
+  // Lấy dữ liệu giỏ hàng đã lưu trong LocalStorage (loại bỏ hoàn toàn key cũ wigvogue_cart)
   const [cartItems, setCartItems] = useState(() => {
     try {
-      const saved = localStorage.getItem('vibebili_cart') || localStorage.getItem('wigvogue_cart');
-      return saved ? JSON.parse(saved) : [];
+      localStorage.removeItem('wigvogue_cart'); // Xóa vĩnh viễn key cũ để tránh khôi phục sản phẩm mock
+      const saved = localStorage.getItem('vibebili_cart');
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return [];
+      // Lọc các item rác hoặc không hợp lệ cơ bản
+      return parsed.filter(item => item && item.name && Number(item.price) > 0);
     } catch (e) {
       return [];
     }
@@ -66,7 +72,7 @@ export const CartProvider = ({ children }) => {
     }
   }, [cartItems]);
 
-  // Hiện toast thông báo
+  // Hiển thị toast thông báo
   const showToast = (message) => {
     setToastMessage(message);
     setTimeout(() => {
@@ -74,14 +80,49 @@ export const CartProvider = ({ children }) => {
     }, 2800);
   };
 
+  /**
+   * Tự động kiểm tra và dọn dẹp các sản phẩm không còn tồn tại trong kho/database
+   * Ngăn chặn tình trạng sản phẩm đã bị xóa hoặc sản phẩm mẫu cũ vẫn lưu mãi trong giỏ hàng
+   */
+  const cleanseOrphanedCartItems = useCallback((activeProducts) => {
+    if (!Array.isArray(activeProducts) || activeProducts.length === 0) return;
+    
+    const validIds = new Set(activeProducts.map(p => String(p.id)));
+
+    setCartItems(prev => {
+      const filtered = prev.filter(item => {
+        if (!item || !item.name || !item.price) return false;
+        // Nếu sản phẩm có product_id, kiểm tra xem nó còn nằm trong catalog hiện tại không
+        if (item.product_id !== undefined && item.product_id !== null) {
+          return validIds.has(String(item.product_id));
+        }
+        return false;
+      });
+
+      if (filtered.length !== prev.length) {
+        const removedCount = prev.length - filtered.length;
+        setTimeout(() => {
+          showToast(`Hệ thống đã tự động gỡ ${removedCount} sản phẩm không còn tồn tại khỏi giỏ hàng.`);
+        }, 300);
+      }
+      return filtered;
+    });
+  }, []);
+
   // Thêm sản phẩm vào giỏ hàng
   const addToCart = (product, variant = null, quantity = 1, options = {}) => {
+    if (!product) return;
+
     const variantId = variant ? variant.id : (product.variants?.[0]?.id || null);
     const colorKey = options.color || variant?.color || 'Mặc định';
     const sizeKey = options.size || variant?.size || 'Tiêu chuẩn';
     const lengthKey = options.length || variant?.length || '';
     
     const cartItemId = `${product.id}-${variantId || 'base'}-${colorKey}-${sizeKey}-${lengthKey}`;
+
+    const itemPrice = Number(variant?.price || product.price || product.base_price || 299000);
+    const itemOrigPrice = Number(variant?.original_price || product.original_price || Math.round(itemPrice * 1.3));
+    const itemImage = variant?.image_url || product.main_image || product.image || DEFAULT_PRODUCT_IMAGE;
 
     setCartItems((prevItems) => {
       const existingIndex = prevItems.findIndex((item) => item.cartItemId === cartItemId);
@@ -96,11 +137,11 @@ export const CartProvider = ({ children }) => {
           id: cartItemId,
           product_id: product.id,
           variant_id: variantId,
-          name: product.name,
+          name: product.name || 'Sản phẩm thời trang',
           variant_title: `${colorKey}${sizeKey !== 'Tiêu chuẩn' ? ` / ${sizeKey}` : ''}${lengthKey ? ` / ${lengthKey}` : ''}`,
-          price: variant?.price || product.price || product.base_price || 299000,
-          original_price: variant?.original_price || product.original_price || 399000,
-          image: variant?.image_url || product.main_image || 'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80',
+          price: itemPrice,
+          original_price: itemOrigPrice,
+          image: itemImage,
           quantity,
           selectedColor: colorKey,
           selectedSize: sizeKey,
@@ -110,7 +151,7 @@ export const CartProvider = ({ children }) => {
       }
     });
 
-    showToast(`Đã thêm "${product.name?.slice(0, 24)}..." vào giỏ hàng!`);
+    showToast(`Đã thêm "${(product.name || 'Sản phẩm').slice(0, 24)}..." vào giỏ hàng!`);
     setIsCartOpen(true);
   };
 
@@ -140,10 +181,11 @@ export const CartProvider = ({ children }) => {
     setAppliedFreeship(null);
     localStorage.removeItem('vibebili_cart');
     localStorage.removeItem('wigvogue_cart');
+    showToast('Đã làm trống toàn bộ giỏ hàng.');
   };
 
   const totalCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
-  const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const subtotal = cartItems.reduce((acc, item) => acc + (Number(item.price) || 0) * item.quantity, 0);
   const baseShippingFee = subtotal >= 500000 || subtotal === 0 ? 0 : 30000;
 
   // Tính giảm giá Voucher
@@ -231,6 +273,7 @@ export const CartProvider = ({ children }) => {
         updateQuantity,
         removeFromCart,
         clearCart,
+        cleanseOrphanedCartItems,
         showToast,
         applyVoucher,
         removeVoucher,

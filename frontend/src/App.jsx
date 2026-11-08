@@ -15,6 +15,7 @@ import CustomerOrders from './components/CustomerOrders';
 import WishlistView from './components/WishlistView';
 import PolicyPage from './components/PolicyPage';
 import { productAPI } from './services/api';
+import { DEFAULT_PRODUCT_IMAGE, normalizeProduct, getCleanCustomProducts } from './utils/productUtils';
 import {
   ShoppingBagIcon,
   SearchIcon,
@@ -28,7 +29,7 @@ import {
 } from './components/Icons';
 
 function MainApp() {
-  const { totalCount, openCart, addToCart, applyVoucher } = useCart();
+  const { totalCount, openCart, addToCart, applyVoucher, cleanseOrphanedCartItems } = useCart();
   const { wishlistItems, totalWishlist, isWishlisted, toggleWishlist } = useWishlist();
   const { user, isAuthenticated, isAdmin, isSeller, logout } = useAuth();
 
@@ -73,7 +74,7 @@ function MainApp() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Load sản phẩm từ API kết hợp đồng bộ localStorage
+  // Load sản phẩm từ API kết hợp đồng bộ localStorage (Chuẩn hóa tự động)
   const loadProducts = () => {
     setLoading(true);
     const params = {};
@@ -82,26 +83,25 @@ function MainApp() {
 
     productAPI.getAll(params)
       .then(res => {
-        let list = (res.success && Array.isArray(res.data)) ? [...res.data] : [];
+        let list = (res.success && Array.isArray(res.data)) ? res.data.map((p, idx) => normalizeProduct(p, idx)) : [];
 
-        // Đọc thêm sản phẩm người dùng đã tạo trong localStorage
-        try {
-          const saved = localStorage.getItem('vibebili_custom_products');
-          if (saved) {
-            const custom = JSON.parse(saved);
-            const existingIds = new Set(list.map(p => p.id));
-            const newCustom = custom.filter(p => !existingIds.has(p.id));
-            list = [...newCustom, ...list];
-          }
-        } catch {}
+        // Hợp nhất sản phẩm người bán tự tạo trong LocalStorage (đã được tự động chuẩn hóa)
+        const custom = getCleanCustomProducts();
+        if (custom.length > 0) {
+          const apiIds = new Set(list.map(p => p.id));
+          const newCustom = custom.filter(p => !apiIds.has(p.id));
+          list = [...newCustom, ...list];
+        }
 
-        // Lọc theo danh mục nếu người dùng chọn
+        // Lọc theo danh mục an toàn tuyệt đối
         if (selectedCategory !== 'all') {
-          list = list.filter(p =>
-            p.category_name?.toLowerCase().includes(selectedCategory.toLowerCase()) ||
-            p.category_id == selectedCategory ||
-            p.slug?.includes(selectedCategory)
-          );
+          const sel = selectedCategory.toLowerCase();
+          list = list.filter(p => {
+            const cName = (p.category_name || p.category || '').toLowerCase();
+            const cId = String(p.category_id || '');
+            const slug = (p.slug || '').toLowerCase();
+            return cName.includes(sel) || cId === sel || slug.includes(sel);
+          });
         }
 
         // Lọc theo từ khóa tìm kiếm nếu có
@@ -115,27 +115,33 @@ function MainApp() {
 
         setProducts(list);
         setLoading(false);
+
+        // Tự động kiểm tra và dọn dẹp các sản phẩm không còn tồn tại khỏi giỏ hàng
+        if (cleanseOrphanedCartItems && list.length > 0) {
+          cleanseOrphanedCartItems(list);
+        }
       })
       .catch(err => {
         console.warn('Lỗi gọi API products, đọc từ localStorage:', err);
-        try {
-          const saved = localStorage.getItem('vibebili_custom_products');
-          let list = saved ? JSON.parse(saved) : [];
-          if (selectedCategory !== 'all') {
-            list = list.filter(p =>
-              p.category_name?.toLowerCase().includes(selectedCategory.toLowerCase()) ||
-              p.category_id == selectedCategory
-            );
-          }
-          if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            list = list.filter(p => p.name?.toLowerCase().includes(q));
-          }
-          setProducts(list);
-        } catch {
-          setProducts([]);
+        let list = getCleanCustomProducts();
+        if (selectedCategory !== 'all') {
+          const sel = selectedCategory.toLowerCase();
+          list = list.filter(p => {
+            const cName = (p.category_name || p.category || '').toLowerCase();
+            const cId = String(p.category_id || '');
+            return cName.includes(sel) || cId === sel;
+          });
         }
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          list = list.filter(p => p.name?.toLowerCase().includes(q));
+        }
+        setProducts(list);
         setLoading(false);
+
+        if (cleanseOrphanedCartItems && list.length > 0) {
+          cleanseOrphanedCartItems(list);
+        }
       });
   };
 
@@ -261,11 +267,11 @@ function MainApp() {
                       className="p-3 hover:bg-vibe-50 flex items-center gap-3 cursor-pointer transition-colors"
                     >
                       <img
-                        src={prod.main_image}
+                        src={prod.main_image || prod.image || DEFAULT_PRODUCT_IMAGE}
                         alt={prod.name}
                         onError={(e) => {
                           e.currentTarget.onerror = null;
-                          e.currentTarget.src = 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=600&q=80';
+                          e.currentTarget.src = DEFAULT_PRODUCT_IMAGE;
                         }}
                         className="w-10 h-10 object-cover rounded-xl border border-vibe-border bg-vibe-100 flex-shrink-0"
                       />
@@ -583,12 +589,12 @@ function MainApp() {
                       {/* Product Image */}
                       <div className="relative overflow-hidden bg-vibe-100 aspect-product">
                         <img
-                          src={product.main_image || 'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=600&q=80'}
+                          src={product.main_image || product.image || DEFAULT_PRODUCT_IMAGE}
                           alt={product.name}
                           loading="lazy"
                           onError={(e) => {
                             e.currentTarget.onerror = null;
-                            e.currentTarget.src = 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=600&q=80';
+                            e.currentTarget.src = DEFAULT_PRODUCT_IMAGE;
                           }}
                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
                         />
@@ -701,6 +707,8 @@ function MainApp() {
         {currentView === 'combo' && (
           <OutfitCombo 
             onNavigateCheckout={() => setCurrentView('checkout')}
+            onNavigateSeller={() => { setCurrentView('seller'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            onNavigateHome={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
           />
         )}
 

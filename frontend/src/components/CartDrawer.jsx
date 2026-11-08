@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useCart } from '../context/CartContext';
 import { CloseIcon, TrashIcon, PlusIcon, MinusIcon, ShoppingBagIcon } from './Icons';
+import { DEFAULT_PRODUCT_IMAGE } from '../utils/productUtils';
 
 function CartDrawer({ onNavigateCheckout }) {
   const {
@@ -9,6 +10,7 @@ function CartDrawer({ onNavigateCheckout }) {
     cartItems,
     updateQuantity,
     removeFromCart,
+    clearCart,
     subtotal,
     shippingFee,
     finalShippingFee,
@@ -33,6 +35,12 @@ function CartDrawer({ onNavigateCheckout }) {
     if (!inputCode.trim()) return;
     applyVoucher(inputCode.trim());
     setInputCode('');
+  };
+
+  const handleClearCart = () => {
+    if (window.confirm('Bạn có chắc chắn muốn làm trống toàn bộ giỏ hàng?')) {
+      clearCart();
+    }
   };
 
   return (
@@ -60,13 +68,24 @@ function CartDrawer({ onNavigateCheckout }) {
                   : `Mua thêm ${(500000 - subtotal).toLocaleString()} đ để được Freeship`}
               </p>
             </div>
-            <button 
-              onClick={closeCart}
-              aria-label="Đóng giỏ hàng"
-              className="text-gray-400 hover:text-black p-2 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-full hover:bg-gray-100 transition"
-            >
-              <CloseIcon className="w-5 h-5" />
-            </button>
+            <div className="flex items-center space-x-2">
+              {cartItems.length > 0 && (
+                <button
+                  onClick={handleClearCart}
+                  title="Xóa toàn bộ giỏ hàng"
+                  className="text-2xs text-gray-400 hover:text-red-600 font-semibold px-2 py-1 rounded hover:bg-red-50 transition"
+                >
+                  Xóa sạch
+                </button>
+              )}
+              <button 
+                onClick={closeCart}
+                aria-label="Đóng giỏ hàng"
+                className="text-gray-400 hover:text-black p-2 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-full hover:bg-gray-100 transition"
+              >
+                <CloseIcon className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {/* Thanh tiến trình Freeship */}
@@ -98,10 +117,14 @@ function CartDrawer({ onNavigateCheckout }) {
             ) : (
               cartItems.map((item) => (
                 <div key={item.id} className="flex space-x-3.5 border-b border-gray-100 pb-4">
-                  {/* Ảnh sản phẩm */}
+                  {/* Ảnh sản phẩm với fallback an toàn */}
                   <img 
-                    src={item.image} 
-                    alt={item.name} 
+                    src={item.image || DEFAULT_PRODUCT_IMAGE} 
+                    alt={item.name}
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = DEFAULT_PRODUCT_IMAGE;
+                    }}
                     className="w-20 h-24 object-cover rounded-xl border border-gray-200 flex-shrink-0 bg-gray-50"
                   />
 
@@ -116,7 +139,7 @@ function CartDrawer({ onNavigateCheckout }) {
 
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-xs font-black text-red-600">
-                        {item.price.toLocaleString()} đ
+                        {Number(item.price || 0).toLocaleString()} đ
                       </span>
 
                       {/* Điều chỉnh số lượng */}
@@ -168,60 +191,85 @@ function CartDrawer({ onNavigateCheckout }) {
                       className={`text-[10px] px-2 py-1 rounded-lg font-bold border transition ${
                         appliedVoucher?.code === v.code || appliedFreeship?.code === v.code
                           ? 'bg-black text-white border-black'
-                          : 'bg-white text-gray-800 border-gray-300 hover:border-black'
+                          : 'bg-white text-gray-700 border-gray-200 hover:border-black'
                       }`}
                     >
-                      {v.code}
+                      {v.code} (-{v.type === 'percent' ? `${v.value}%` : `${(v.value / 1000)}k`})
                     </button>
                   ))}
                 </div>
-
-                {appliedVoucher && (
-                  <div className="mt-2 text-[11px] bg-emerald-50 text-emerald-800 border border-emerald-200 p-1.5 rounded-lg flex justify-between items-center">
-                    <span>Đã áp dụng voucher: <strong>{appliedVoucher.code}</strong> (-{voucherDiscount.toLocaleString()}đ)</span>
-                    <button onClick={removeVoucher} className="text-red-500 font-bold ml-2">✕</button>
-                  </div>
-                )}
-                {appliedFreeship && (
-                  <div className="mt-1.5 text-[11px] bg-emerald-50 text-emerald-800 border border-emerald-200 p-1.5 rounded-lg flex justify-between items-center">
-                    <span>Đã áp dụng freeship: <strong>{appliedFreeship.code}</strong> (-{freeshipDiscount.toLocaleString()}đ)</span>
-                    <button onClick={removeFreeship} className="text-red-500 font-bold ml-2">✕</button>
-                  </div>
-                )}
               </div>
 
-              {/* Tóm tắt tiền */}
-              <div className="space-y-1.5 text-xs text-gray-600 border-t border-gray-200 pt-2.5">
+              {/* Form nhập mã voucher tùy ý */}
+              <form onSubmit={handleApplyCustomCode} className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Nhập mã voucher..."
+                  value={inputCode}
+                  onChange={(e) => setInputCode(e.target.value)}
+                  className="flex-1 border border-gray-300 rounded-xl px-3 py-2 text-xs uppercase focus:outline-none focus:border-black bg-white"
+                />
+                <button
+                  type="submit"
+                  className="bg-gray-900 hover:bg-black text-white text-xs px-4 py-2 rounded-xl font-bold transition flex-shrink-0"
+                >
+                  Áp dụng
+                </button>
+              </form>
+
+              {/* Chi tiết giảm trừ */}
+              <div className="space-y-1.5 text-xs text-gray-600 border-t border-gray-200 pt-3">
                 <div className="flex justify-between">
-                  <span>Tạm tính:</span>
+                  <span>Tạm tính hàng:</span>
                   <span className="font-semibold text-gray-900">{subtotal.toLocaleString()} đ</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Phí ship:</span>
-                  <span className={finalShippingFee === 0 ? 'text-emerald-600 font-bold' : 'font-semibold text-gray-900'}>
-                    {finalShippingFee === 0 ? 'MIỄN PHÍ' : `${finalShippingFee.toLocaleString()} đ`}
-                  </span>
-                </div>
-                {voucherDiscount > 0 && (
-                  <div className="flex justify-between text-emerald-600 font-bold">
-                    <span>Voucher giảm giá:</span>
-                    <span>- {voucherDiscount.toLocaleString()} đ</span>
+                {appliedVoucher && (
+                  <div className="flex justify-between text-green-700 font-semibold">
+                    <span className="flex items-center gap-1">
+                      Giảm giá voucher ({appliedVoucher.code}):
+                      <button onClick={removeVoucher} className="text-gray-400 hover:text-red-500 font-normal">×</button>
+                    </span>
+                    <span>-{voucherDiscount.toLocaleString()} đ</span>
                   </div>
                 )}
-                <div className="flex justify-between text-sm font-extrabold text-gray-900 border-t border-gray-200 pt-2">
-                  <span>Tổng thanh toán:</span>
-                  <span className="text-red-600 text-lg font-black">{totalAmount.toLocaleString()} đ</span>
+                <div className="flex justify-between">
+                  <span className="flex items-center gap-1">
+                    Phí vận chuyển:
+                    {appliedFreeship && (
+                      <button onClick={removeFreeship} className="text-gray-400 hover:text-red-500 font-normal">×</button>
+                    )}
+                  </span>
+                  <span>
+                    {baseShippingFee === 0 ? (
+                      <span className="text-green-600 font-semibold">Miễn phí</span>
+                    ) : freeshipDiscount > 0 ? (
+                      <span>
+                        <span className="line-through text-gray-400 mr-1.5">{shippingFee.toLocaleString()} đ</span>
+                        <span className="text-green-600 font-semibold">{finalShippingFee.toLocaleString()} đ</span>
+                      </span>
+                    ) : (
+                      `${shippingFee.toLocaleString()} đ`
+                    )}
+                  </span>
                 </div>
               </div>
 
+              {/* Tổng thanh toán cuối */}
+              <div className="flex items-baseline justify-between pt-2 border-t border-gray-200">
+                <span className="text-sm font-black text-gray-900">Tổng thanh toán:</span>
+                <span className="text-xl font-black text-red-600">{totalAmount.toLocaleString()} đ</span>
+              </div>
+
+              {/* Nút Chuyển sang thanh toán */}
               <button
                 onClick={() => {
                   closeCart();
                   if (onNavigateCheckout) onNavigateCheckout();
                 }}
-                className="w-full bg-black text-white font-extrabold py-3.5 rounded-full hover:bg-neutral-800 transition uppercase tracking-wider text-xs shadow-lg min-h-[44px] flex items-center justify-center space-x-2 mt-2"
+                className="w-full bg-black hover:bg-neutral-800 text-white py-3.5 rounded-full font-black text-xs uppercase tracking-wider transition shadow-lg flex items-center justify-center space-x-2 min-h-[44px]"
               >
-                <span>Tiến Hành Thanh Toán ({totalCount})</span>
+                <span>Tiến Hành Đặt Hàng</span>
+                <span>→</span>
               </button>
             </div>
           )}

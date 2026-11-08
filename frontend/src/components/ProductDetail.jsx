@@ -3,6 +3,7 @@ import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useAuth } from '../context/AuthContext';
 import { productAPI } from '../services/api';
+import { DEFAULT_PRODUCT_IMAGE, getCleanCustomProducts } from '../utils/productUtils';
 import {
   ShoppingBagIcon,
   LightningIcon,
@@ -45,49 +46,16 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(null);
 
-  // Fallback product nếu API chưa sẵn sàng
-  const fallbackProduct = {
-    id: productId || 1,
-    name: "Tóc Giả Nữ Nguyên Đầu Xoăn Sóng Nước 60cm — Sợi Tơ Nhiệt Cao Cấp kèm Lưới Trùm",
-    price: 350000,
-    original_price: 500000,
-    rating: 4.9,
-    reviewsCount: 128,
-    sold_count: "1.2k+",
-    category_id: 1,
-    category_name: "Tóc Giả Cao Cấp",
-    seller_name: "VibeBili Flagship Store",
-    description: "Sản phẩm tóc giả cao cấp làm từ sợi tơ lụa nhân tạo chịu nhiệt cao đến 180°C. Mềm mượt như tóc thật, không bóng lộ, thiết kế lưới ren thoáng khí co giãn ôm sát vòng đầu, thoải mái hoạt động suốt cả ngày.",
-    main_image: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80",
-    images: [
-      "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80",
-      "https://images.unsplash.com/photo-1519699047748-de8e457a634e?auto=format&fit=crop&w=800&q=80"
-    ],
-    colors: [
-      { name: "Nâu Sô-cô-la", image: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80" },
-      { name: "Đen Tự Nhiên", image: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80" },
-      { name: "Xám Khói", image: "https://images.unsplash.com/photo-1519699047748-de8e457a634e?auto=format&fit=crop&w=800&q=80" }
-    ],
-    sizes: ["S (52-54cm)", "M (54-58cm)", "L (58-60cm)"],
-    hairLengths: ["50cm", "60cm (Hot)", "70cm"]
-  };
-
   // Load product data & reviews
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
     const targetId = productId || 1;
 
-    // Tìm sản phẩm trong localStorage trước nếu có
+    // Tìm sản phẩm trong custom products trước nếu có
     let localProd = null;
-    try {
-      const savedProds = localStorage.getItem('vibebili_custom_products');
-      if (savedProds) {
-        const parsed = JSON.parse(savedProds);
-        localProd = parsed.find(p => p.id == targetId);
-      }
-    } catch {}
+    const cleanCustom = getCleanCustomProducts();
+    localProd = cleanCustom.find(p => String(p.id) === String(targetId)) || null;
 
     // Đọc đánh giá đã lưu trong localStorage cho sản phẩm này
     let localReviews = [];
@@ -105,14 +73,15 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
           const d = res.data;
           const colors = d.options?.find(o => o.name.toLowerCase().includes('màu'))?.values?.map(name => ({
             name,
-            image: d.main_image
+            image: d.main_image || d.image || DEFAULT_PRODUCT_IMAGE
           })) || (d.main_image ? [{ name: 'Tiêu chuẩn', image: d.main_image }] : []);
           const sizes = d.options?.find(o => o.name.toLowerCase().includes('cỡ') || o.name.toLowerCase().includes('size') || o.name.toLowerCase().includes('đầu'))?.values || ['Tiêu chuẩn'];
           const lengths = d.options?.find(o => o.name.toLowerCase().includes('dài'))?.values || [];
 
           setProduct({
             ...d,
-            colors: colors.length > 0 ? colors : [{ name: 'Mặc định', image: d.main_image }],
+            main_image: d.main_image || d.image || DEFAULT_PRODUCT_IMAGE,
+            colors: colors.length > 0 ? colors : [{ name: 'Mặc định', image: d.main_image || DEFAULT_PRODUCT_IMAGE }],
             sizes,
             hairLengths: lengths
           });
@@ -122,16 +91,19 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
         } else if (localProd) {
           const colors = localProd.options?.find(o => o.name.toLowerCase().includes('màu'))?.values?.map(name => ({
             name,
-            image: localProd.main_image || localProd.image
-          })) || [{ name: 'Tiêu chuẩn', image: localProd.main_image || localProd.image }];
+            image: localProd.main_image || localProd.image || DEFAULT_PRODUCT_IMAGE
+          })) || [{ name: 'Tiêu chuẩn', image: localProd.main_image || localProd.image || DEFAULT_PRODUCT_IMAGE }];
 
           setProduct({
             ...localProd,
+            main_image: localProd.main_image || localProd.image || DEFAULT_PRODUCT_IMAGE,
             colors,
             sizes: ['Tiêu chuẩn']
           });
           setSelectedColor(colors[0]?.name || 'Tiêu chuẩn');
           setSelectedSize('Tiêu chuẩn');
+        } else {
+          setProduct(null);
         }
         setLoading(false);
       })
@@ -140,21 +112,19 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
           if (localProd) {
             const colors = localProd.options?.find(o => o.name.toLowerCase().includes('màu'))?.values?.map(name => ({
               name,
-              image: localProd.main_image || localProd.image
-            })) || [{ name: 'Tiêu chuẩn', image: localProd.main_image || localProd.image }];
+              image: localProd.main_image || localProd.image || DEFAULT_PRODUCT_IMAGE
+            })) || [{ name: 'Tiêu chuẩn', image: localProd.main_image || localProd.image || DEFAULT_PRODUCT_IMAGE }];
 
             setProduct({
               ...localProd,
+              main_image: localProd.main_image || localProd.image || DEFAULT_PRODUCT_IMAGE,
               colors,
               sizes: ['Tiêu chuẩn']
             });
             setSelectedColor(colors[0]?.name || 'Tiêu chuẩn');
             setSelectedSize('Tiêu chuẩn');
           } else {
-            setProduct(fallbackProduct);
-            setSelectedColor(fallbackProduct.colors[0]?.name || '');
-            setSelectedSize(fallbackProduct.sizes[0] || '');
-            setSelectedLength(fallbackProduct.hairLengths[0] || '');
+            setProduct(null);
           }
           setLoading(false);
         }
@@ -182,7 +152,7 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
     return () => { isMounted = false; };
   }, [productId]);
 
-  const activeProduct = product || fallbackProduct;
+  const activeProduct = product;
   const currentDisplayImage = activeImage || activeProduct.main_image;
   const wishlisted = isWishlisted(activeProduct.id);
 
@@ -287,8 +257,6 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
     return true;
   });
 
-  const isWigProduct = activeProduct.category_name?.toLowerCase().includes('tóc') || activeProduct.category_id === 1 || activeProduct.category_id === 4;
-
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-24 text-center text-vibe-muted">
@@ -297,6 +265,26 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
       </div>
     );
   }
+
+  if (!activeProduct) {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-24 text-center space-y-4">
+        <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto text-gray-400">
+          <ShoppingBagIcon className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-black uppercase text-gray-900">Sản phẩm không tồn tại</h2>
+        <p className="text-xs text-gray-500">Sản phẩm này có thể đã bị xóa hoặc ngừng kinh doanh trên sàn VibeBili.</p>
+        <button
+          onClick={onBack}
+          className="bg-black hover:bg-neutral-800 text-white text-xs px-6 py-3 rounded-full font-bold transition shadow"
+        >
+          ← Quay lại danh mục mua sắm
+        </button>
+      </div>
+    );
+  }
+
+  const isWigProduct = activeProduct.category_name?.toLowerCase().includes('tóc') || activeProduct.category_id === 1 || activeProduct.category_id === 4;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 text-vibe-ink">
@@ -341,11 +329,11 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
             </button>
 
             <img
-              src={currentDisplayImage}
+              src={currentDisplayImage || DEFAULT_PRODUCT_IMAGE}
               alt={activeProduct.name}
               onError={(e) => {
                 e.currentTarget.onerror = null;
-                e.currentTarget.src = 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=800&q=80';
+                e.currentTarget.src = DEFAULT_PRODUCT_IMAGE;
               }}
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             />

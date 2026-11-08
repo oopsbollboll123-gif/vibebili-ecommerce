@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { productAPI, orderAPI, serviceAPI } from '../services/api';
+import { DEFAULT_PRODUCT_IMAGE, normalizeProduct, getCleanCustomProducts } from '../utils/productUtils';
 import {
   StoreIcon,
   ShoppingBagIcon,
@@ -70,15 +71,8 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
   const [bulkData, setBulkData] = useState([]);
   const [bulkStatus, setBulkStatus] = useState('');
 
-  // Danh sách sản phẩm (Bắt đầu trống để người bán tự nhập sản phẩm thực tế của mình)
-  const [products, setProducts] = useState(() => {
-    try {
-      const saved = localStorage.getItem('vibebili_custom_products');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  // Danh sách sản phẩm (Tự động chuẩn hóa dữ liệu từ LocalStorage)
+  const [products, setProducts] = useState(() => getCleanCustomProducts());
 
   // Danh sách đơn hàng
   const [orders, setOrders] = useState([
@@ -304,7 +298,7 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
 
       const newId = res?.productId || (products.length > 0 ? Math.max(...products.map(p => p.id || 0)) + 1 : Date.now());
 
-      const created = {
+      const created = normalizeProduct({
         id: newId,
         name: newProduct.name.trim(),
         category: newProduct.category,
@@ -320,7 +314,7 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
         sold_count: 0,
         options: payload.options,
         description: newProduct.description || ''
-      };
+      }, 0);
 
       const updated = [created, ...products];
       setProducts(updated);
@@ -427,7 +421,7 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
     reader.readAsText(file);
   };
 
-  // Xác nhận Đăng tải hàng loạt (Lưu Database & localStorage)
+  // Xác nhận Đăng tải hàng loạt (Lưu Database & localStorage với chuẩn hóa toàn diện)
   const handleConfirmBulkUpload = async () => {
     if (bulkData.length === 0) return;
     setLoading(true);
@@ -436,27 +430,16 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
       
       let newProductsList = [];
       if (res && res.success && Array.isArray(res.data)) {
-        newProductsList = res.data.map(p => ({
-          id: p.id,
-          name: p.name,
-          category: p.category_name || p.category,
-          price: Number(p.price || 0),
-          stock: p.variants?.[0]?.stock || p.stock || 50,
-          status: "Đang bán",
-          image: p.main_image || p.image || ''
-        }));
+        newProductsList = res.data.map((p, idx) => normalizeProduct(p, idx));
       } else {
         // Fallback local
         const currentMaxId = products.length > 0 ? Math.max(...products.map(p => p.id || 0)) : 0;
-        newProductsList = bulkData.map((b, idx) => ({
+        newProductsList = bulkData.map((b, idx) => normalizeProduct({
+          ...b,
           id: currentMaxId + idx + 1,
-          name: b.name,
-          category: b.category,
-          price: Number(b.price || 0),
-          stock: Number(b.stock || 50),
-          status: "Đang bán",
-          image: b.image || ''
-        }));
+          category_name: b.category,
+          main_image: b.image
+        }, idx));
       }
 
       const updated = [...newProductsList, ...products];
@@ -968,11 +951,11 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
                         <td className="p-3.5">
                           <div className="flex items-center space-x-3">
                             <img
-                              src={p.image || p.main_image || 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=300&q=80'}
+                              src={p.image || p.main_image || DEFAULT_PRODUCT_IMAGE}
                               alt={p.name}
                               onError={(e) => {
                                 e.currentTarget.onerror = null;
-                                e.currentTarget.src = 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=300&q=80';
+                                e.currentTarget.src = DEFAULT_PRODUCT_IMAGE;
                               }}
                               className="w-12 h-12 rounded-xl object-cover border border-gray-200 shadow-sm flex-shrink-0"
                             />
@@ -1616,7 +1599,7 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
                                 <img
                                   src={row.image}
                                   alt={row.name}
-                                  onError={(e) => { e.currentTarget.src = 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=300&q=80'; }}
+                                  onError={(e) => { e.currentTarget.src = DEFAULT_PRODUCT_IMAGE; }}
                                   className="w-8 h-8 rounded-lg object-cover border border-gray-200"
                                 />
                               ) : (
@@ -1844,7 +1827,7 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
                           alt="Xem trước ảnh sản phẩm"
                           onError={(e) => {
                             e.currentTarget.onerror = null;
-                            e.currentTarget.src = 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=300&q=80';
+                            e.currentTarget.src = DEFAULT_PRODUCT_IMAGE;
                           }}
                           className="w-full h-full object-cover"
                         />
