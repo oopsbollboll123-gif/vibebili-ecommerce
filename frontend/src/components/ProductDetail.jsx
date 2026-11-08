@@ -153,11 +153,12 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
   }, [productId]);
 
   const activeProduct = product;
-  const currentDisplayImage = activeImage || activeProduct.main_image;
-  const wishlisted = isWishlisted(activeProduct.id);
+  const currentDisplayImage = activeImage || activeProduct?.main_image || DEFAULT_PRODUCT_IMAGE;
+  const wishlisted = activeProduct ? isWishlisted(activeProduct.id) : false;
 
   // Thêm vào giỏ hàng
   const handleAddToCart = () => {
+    if (!activeProduct) return;
     const selectedVariant = activeProduct.variants?.find(v =>
       (v.color === selectedColor || !v.color) && (v.size === selectedSize || !v.size)
     ) || activeProduct.variants?.[0] || null;
@@ -180,7 +181,7 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
   // Gửi review mới
   const handleSubmitReview = async (e) => {
     e.preventDefault();
-    if (!newComment.trim()) return;
+    if (!newComment.trim() || !activeProduct) return;
 
     setIsSubmittingReview(true);
     const authorName = (newReviewName.trim() || user?.name || 'Khách hàng VibeBili');

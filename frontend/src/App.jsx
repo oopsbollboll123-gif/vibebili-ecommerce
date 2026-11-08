@@ -147,6 +147,9 @@ function MainApp() {
 
   useEffect(() => {
     loadProducts();
+    const handleProductsUpdated = () => loadProducts();
+    window.addEventListener('vibebili_products_updated', handleProductsUpdated);
+    return () => window.removeEventListener('vibebili_products_updated', handleProductsUpdated);
   }, [selectedCategory]);
 
   const handleSearch = (e) => {
@@ -598,8 +601,13 @@ function MainApp() {
                           }}
                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
                         />
-                        {/* Sale badge */}
-                        <span className="badge-sale absolute top-2.5 left-2.5">−30%</span>
+                        {/* Sale badge: Tính % giảm giá thực tế, chỉ hiện khi có giảm giá */}
+                        {product.original_price && Number(product.original_price) > Number(product.price) && (() => {
+                          const pct = Math.round((1 - Number(product.price) / Number(product.original_price)) * 100);
+                          return pct >= 1 ? (
+                            <span className="badge-sale absolute top-2.5 left-2.5">−{pct}%</span>
+                          ) : null;
+                        })()}
 
                         {/* Wishlist button */}
                         <button
@@ -632,7 +640,7 @@ function MainApp() {
                         <div className="flex items-center gap-1 text-2xs text-vibe-muted mb-2">
                           <StarIcon className="w-3.5 h-3.5 text-amber-400 fill-amber-400 flex-shrink-0" />
                           <span className="font-semibold text-vibe-700">{product.rating || 5.0}</span>
-                          <span>• {product.sold_count || '500+'} đã bán</span>
+                          <span>• {product.sold_count ? `${product.sold_count} đã bán` : 'Mới mở bán'}</span>
                         </div>
 
                         <div className="flex items-center justify-between pt-2 border-t border-vibe-50">

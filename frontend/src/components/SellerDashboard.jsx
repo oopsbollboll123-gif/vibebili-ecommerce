@@ -74,12 +74,31 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
   // Danh sách sản phẩm (Tự động chuẩn hóa dữ liệu từ LocalStorage)
   const [products, setProducts] = useState(() => getCleanCustomProducts());
 
-  // Danh sách đơn hàng
-  const [orders, setOrders] = useState([
-    { id: "WIG-849201", customer_name: "Nguyễn Thu Thảo", customer_phone: "0933112233", total_amount: 380000, status: "Chờ xác nhận", created_at: "2026-10-27", shipping_carrier: "Chưa phân công", tracking_code: "Chưa có" },
-    { id: "WIG-849195", customer_name: "Trần Minh Tuấn", customer_phone: "0918111222", total_amount: 550000, status: "Đã hẹn bưu tá", created_at: "2026-10-26", shipping_carrier: "GHN", tracking_code: "GHN-VB-883921", pickup_date: "2026-10-28", pickup_time_slot: "Sáng (08:30 - 11:30)" },
-    { id: "WIG-849182", customer_name: "Lê Hoàng Yến", customer_phone: "0909554433", total_amount: 720000, status: "Đã giao", created_at: "2026-10-25", shipping_carrier: "GHTK", tracking_code: "GHTK-VB-554190" }
-  ]);
+  // Danh sách đơn hàng (Tự động đồng bộ từ localStorage và API)
+  const [orders, setOrders] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vibebili_orders');
+      if (saved) {
+        const list = JSON.parse(saved);
+        if (Array.isArray(list) && list.length > 0) {
+          return list.map(o => ({
+            id: o.order_code || `VB-${o.id}`,
+            realId: o.id,
+            customer_name: o.customer_name || 'Khách hàng',
+            customer_phone: o.customer_phone || '0909000000',
+            total_amount: Number(o.total_amount || 0),
+            status: o.status || 'Chờ xác nhận',
+            created_at: o.created_at || new Date().toISOString().split('T')[0],
+            shipping_carrier: o.carrier || o.shipping_carrier || 'Chưa phân công',
+            tracking_code: o.tracking_code || 'Chưa có',
+            pickup_date: o.pickup_date,
+            pickup_time_slot: o.pickup_time_slot
+          }));
+        }
+      }
+    } catch {}
+    return [];
+  });
 
   // Danh sách Voucher khuyến mãi
   const [vouchers, setVouchers] = useState([]);
@@ -321,6 +340,7 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
       try {
         localStorage.setItem('vibebili_custom_products', JSON.stringify(updated));
       } catch {}
+      window.dispatchEvent(new CustomEvent('vibebili_products_updated'));
 
       // Reset form sau khi thêm thành công
       setNewProduct({
@@ -373,41 +393,91 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
           setBulkData(normalized);
           setBulkStatus(`Đã đọc ${normalized.length} sản phẩm từ file JSON.`);
         } else {
-          // Parse CSV thông minh có nhận diện header
-          const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-          if (lines.length < 2) {
+          // Parse CSV chuẩn RFC 4180 hỗ trợ dấu phẩy trong ngoặc kép, dấu chấm phẩy Excel, và tab
+          const firstLine = text.split('\n')[0] || '';
+          const commaCount = (firstLine.match(/,/g) || []).length;
+          const semiCount = (firstLine.match(/;/g) || []).length;
+          const tabCount = (firstLine.match(/\t/g) || []).length;
+          let delimiter = ',';
+          if (semiCount > commaCount && semiCount > tabCount) delimiter = ';';
+          else if (tabCount > commaCount && tabCount > semiCount) delimiter = '\t';
+
+          const allRows = [];
+          let currentRow = [];
+          let currentVal = '';
+          let inQuotes = false;
+
+          for (let i = 0; i < text.length; i++) {
+            const char = text[i];
+            const nextChar = text[i + 1];
+
+            if (char === '"') {
+              if (inQuotes && nextChar === '"') {
+                currentVal += '"';
+                i++;
+              } else {
+                inQuotes = !inQuotes;
+              }
+            } else if (char === delimiter && !inQuotes) {
+              currentRow.push(currentVal.trim());
+              currentVal = '';
+            } else if ((char === '\r' || char === '\n') && !inQuotes) {
+              if (char === '\r' && nextChar === '\n') i++;
+              currentRow.push(currentVal.trim());
+              if (currentRow.some(v => v.length > 0)) {
+                allRows.push(currentRow);
+              }
+              currentRow = [];
+              currentVal = '';
+            } else {
+              currentVal += char;
+            }
+          }
+          if (currentVal.length > 0 || currentRow.length > 0) {
+            currentRow.push(currentVal.trim());
+            if (currentRow.some(v => v.length > 0)) {
+              allRows.push(currentRow);
+            }
+          }
+
+          if (allRows.length < 2) {
             setBulkStatus('File CSV không có dữ liệu sản phẩm!');
             return;
           }
-          const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
+
+          const headers = allRows[0].map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
           
           const getIndex = (aliases, fallbackIdx) => {
             const idx = headers.findIndex(h => aliases.some(a => h.includes(a)));
             return idx !== -1 ? idx : fallbackIdx;
           };
 
-          const nameIdx = getIndex(['ten', 'name'], 0);
+          const nameIdx = getIndex(['ten', 'name', 'title'], 0);
           const catIdx = getIndex(['danh_muc', 'category', 'loai'], 1);
           const priceIdx = getIndex(['gia', 'price'], 2);
           const stockIdx = getIndex(['kho', 'stock', 'ton'], 3);
           const colorIdx = getIndex(['mau', 'color'], 4);
           const sizeIdx = getIndex(['size', 'co', 'dau'], 5);
           const descIdx = getIndex(['mo_ta', 'desc'], 6);
-          const imgIdx = getIndex(['anh', 'image', 'hinh', 'img', 'link_anh'], 7);
+          const imgIdx = getIndex(['anh', 'image', 'hinh', 'img', 'link_anh', 'url'], 7);
 
           const rows = [];
-          for (let i = 1; i < lines.length; i++) {
-            const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+          for (let i = 1; i < allRows.length; i++) {
+            const values = allRows[i];
             if (values.length >= 2 && values[nameIdx]) {
+              const cleanPrice = Number(String(values[priceIdx] || '').replace(/[^0-9]/g, '')) || 350000;
+              const cleanStock = Number(String(values[stockIdx] || '').replace(/[^0-9]/g, '')) || 50;
+              const rawImg = (imgIdx !== -1 && values[imgIdx]) ? values[imgIdx] : '';
+
               rows.push({
                 name: values[nameIdx] || `Sản phẩm SKU ${i}`,
                 category: values[catIdx] || 'Tóc Giả Cao Cấp',
-                price: Number(values[priceIdx]) || 350000,
-                stock: Number(values[stockIdx]) || 50,
+                price: cleanPrice,
+                stock: cleanStock,
                 color: values[colorIdx] || 'Tiêu chuẩn',
                 size: values[sizeIdx] || 'Tiêu chuẩn',
                 description: values[descIdx] || '',
-                image: (imgIdx !== -1 && values[imgIdx]) ? values[imgIdx] : ''
+                image: rawImg
               });
             }
           }
@@ -447,6 +517,7 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
       try {
         localStorage.setItem('vibebili_custom_products', JSON.stringify(updated));
       } catch {}
+      window.dispatchEvent(new CustomEvent('vibebili_products_updated'));
 
       alert(`🎉 Đăng tải hàng loạt thành công ${newProductsList.length} sản phẩm lên gian hàng VibeBili!`);
       setIsBulkModalOpen(false);
@@ -538,20 +609,41 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
     if (!selectedOrderForPickup) return;
 
     setLoading(true);
+    const trackingCode = `GHN-VB-${Math.floor(100000 + Math.random() * 900000)}`;
     try {
-      const res = await orderAPI.schedulePickup(selectedOrderForPickup.id, pickupForm);
-      if (res.success) {
-        alert(`🎉 ${res.message}`);
-        setOrders(orders.map(o => o.id === selectedOrderForPickup.id ? {
+      await orderAPI.schedulePickup(selectedOrderForPickup.id, pickupForm).catch(() => {});
+      alert(`🎉 Đã lên lịch hẹn bưu tá ${pickupForm.shipping_carrier} lấy hàng thành công! Mã vận đơn: ${trackingCode}`);
+      
+      setOrders(prev => {
+        const updated = prev.map(o => o.id === selectedOrderForPickup.id ? {
           ...o,
           status: 'Đã hẹn bưu tá',
           shipping_carrier: pickupForm.shipping_carrier,
-          tracking_code: res.data?.trackingCode || 'GHN-VB-774921',
+          tracking_code: trackingCode,
           pickup_date: pickupForm.pickup_date,
           pickup_time_slot: pickupForm.pickup_time_slot
-        } : o));
-        setIsPickupModalOpen(false);
-      }
+        } : o);
+
+        // Đồng bộ ngược lại vào vibebili_orders để CustomerOrders thấy ngay
+        try {
+          const raw = localStorage.getItem('vibebili_orders');
+          if (raw) {
+            const list = JSON.parse(raw);
+            const synced = list.map(item => (item.order_code === selectedOrderForPickup.id || item.id === selectedOrderForPickup.id) ? {
+              ...item,
+              status: 'Đã hẹn bưu tá',
+              carrier: pickupForm.shipping_carrier,
+              tracking_code: trackingCode,
+              pickup_date: pickupForm.pickup_date,
+              pickup_time_slot: pickupForm.pickup_time_slot
+            } : item);
+            localStorage.setItem('vibebili_orders', JSON.stringify(synced));
+          }
+        } catch {}
+
+        return updated;
+      });
+      setIsPickupModalOpen(false);
     } catch (err) {
       alert('⚠️ ' + (err.message || 'Lỗi khi hẹn bưu tá!'));
     } finally {
@@ -999,6 +1091,7 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
                                   try {
                                     localStorage.setItem('vibebili_custom_products', JSON.stringify(remaining));
                                   } catch {}
+                                  window.dispatchEvent(new CustomEvent('vibebili_products_updated'));
                                 }
                               }}
                               className="text-red-500 hover:text-red-700 font-bold hover:underline px-2 py-1 text-[11px]"

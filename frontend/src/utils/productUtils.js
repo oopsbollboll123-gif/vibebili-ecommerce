@@ -1,7 +1,20 @@
 // VibeBili Shared Product & Data Utilities
 
-// Fallback SVG data URI: Hoàn toàn độc lập, không phụ thuộc mạng/CDN bên ngoài, không bao giờ bị lỗi ảnh hỏng
-export const DEFAULT_PRODUCT_IMAGE = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600"><rect width="600" height="600" fill="%23f1f5f9"/><circle cx="300" cy="270" r="70" fill="%23cbd5e1"/><path d="M180 430c0-66.27 53.73-120 120-120s120 53.73 120 120" fill="%2394a3b8"/><text x="50%25" y="520" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif" font-size="24" font-weight="700" fill="%2364748b">VibeBili Fashion</text></svg>`;
+// Fallback SVG data URI: Dùng SVG Base64 chuẩn W3C, an toàn 100% trên mọi trình duyệt, không bao giờ bị lỗi ảnh đứt gãy
+export const DEFAULT_PRODUCT_IMAGE = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MDAiIGhlaWdodD0iNjAwIiB2aWV3Qm94PSIwIDAgNjAwIDYwMCI+PHJlY3Qgd2lkdGg9IjYwMCIgaGVpZ2h0PSI2MDAiIGZpbGw9IiNmMmY0ZjciLz48ZyBmaWxsPSIjY2JkNWUxIj48Y2lyY2xlIGN4PSIzMDAiIGN5PSIyNTAiIHI9IjY1Ii8+PHBhdGggZD0iTTE5MCA0MjBjMC02MCA1MC0xMTAgMTEwLTExMHwxMTAgNTAgMTEwIDExMGgtMjIweiIvPjwvZz48dGV4dCB4PSIzMDAiIHk9IjQ5MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9InNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjIiIGZvbnQtd2VpZ2h0PSI2MDAiIGZpbGw9IiM5NGEzYjgiPlZpYmVCaWxpIEZhc2hpb248L3RleHQ+PC9zdmc+';
+
+/**
+ * Kiểm tra xem một chuỗi có phải là link ảnh hợp lệ không (URL hoặc data:image)
+ */
+export const isValidImageUrl = (url) => {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (trimmed.length < 8) return false;
+  if (trimmed.startsWith('data:image/')) return true;
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return true;
+  if (trimmed.startsWith('/') || trimmed.startsWith('./')) return true;
+  return false;
+};
 
 /**
  * Chuẩn hóa cấu trúc sản phẩm đồng nhất cho toàn hệ thống
@@ -22,7 +35,7 @@ export const normalizeProduct = (p, fallbackIndex = 0) => {
   }
 
   const rawImg = p.main_image || p.image || p.link_anh || p.hinh_anh || p.imageUrl || '';
-  const finalImg = (typeof rawImg === 'string' && rawImg.trim().length > 0) ? rawImg.trim() : DEFAULT_PRODUCT_IMAGE;
+  const finalImg = isValidImageUrl(rawImg) ? rawImg.trim() : DEFAULT_PRODUCT_IMAGE;
 
   const price = Math.max(0, Number(p.price || p.base_price || 299000));
   const origPrice = Math.max(price, Number(p.original_price || p.originalPrice || Math.round(price * 1.3)));
@@ -49,7 +62,7 @@ export const normalizeProduct = (p, fallbackIndex = 0) => {
     main_image: finalImg,
     image: finalImg,
     rating: Number(p.rating) || 5.0,
-    sold_count: p.sold_count !== undefined ? p.sold_count : 0,
+    sold_count: p.sold_count !== undefined ? Number(p.sold_count) : 0,
     is_combo: isCombo,
     description: p.description || 'Sản phẩm chính hãng chất lượng cao trên sàn VibeBili.',
     options: Array.isArray(p.options) && p.options.length > 0 ? p.options : [

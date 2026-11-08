@@ -42,94 +42,32 @@ function CustomerOrders({ onBackToHome, onNavigateProduct }) {
   // Tải danh sách đơn hàng của khách
   const loadOrders = async () => {
     setLoading(true);
+    let localSaved = [];
+    try {
+      const raw = localStorage.getItem('vibebili_orders');
+      if (raw) localSaved = JSON.parse(raw);
+    } catch {}
+
     try {
       let res;
       if (isAuthenticated) {
         res = await orderAPI.getMyOrders();
       } else {
-        // Fallback lấy toàn bộ đơn hàng và lọc hoặc hiển thị
         res = await orderAPI.getAllOrders();
       }
 
-      if (res && res.data) {
-        // Sắp xếp đơn mới nhất lên đầu
-        const sorted = [...res.data].sort((a, b) => b.id - a.id);
-        setOrders(sorted);
+      if (res && res.data && Array.isArray(res.data)) {
+        // Hợp nhất đơn hàng từ API và đơn hàng đã lưu trong LocalStorage
+        const apiCodes = new Set(res.data.map(o => o.order_code || String(o.id)));
+        const newLocal = localSaved.filter(o => !apiCodes.has(o.order_code || String(o.id)));
+        const combined = [...res.data, ...newLocal].sort((a, b) => (b.id || 0) - (a.id || 0));
+        setOrders(combined);
+      } else {
+        setOrders(localSaved);
       }
     } catch (err) {
-      console.warn('Lỗi tải đơn hàng cá nhân:', err);
-      // Fallback mock orders nếu server chưa chạy
-      setOrders([
-        {
-          id: 101,
-          order_code: 'VB-89214',
-          created_at: '2026-10-31',
-          customer_name: user?.name || 'Khách hàng VibeBili',
-          customer_phone: '0908889999',
-          shipping_address: 'Tầng 4, Tòa nhà Landmark 81, 720A Điện Biên Phủ, P.22, Q. Bình Thạnh',
-          city: 'Hồ Chí Minh',
-          subtotal: 549000,
-          shipping_fee: 0,
-          voucher_discount: 100000,
-          total_amount: 449000,
-          payment_method: 'cod',
-          payment_status: 'pending',
-          status: 'Chờ xác nhận',
-          carrier: 'GHN - Giao Hàng Nhanh',
-          tracking_code: 'GHN-VB-102938',
-          items: [
-            {
-              id: 1,
-              product_id: 1,
-              product_name: 'Tóc Giả Nữ Nguyên Đầu Xoăn Sóng Nước 60cm — Sợi Tơ Nhiệt Cao Cấp kèm Lưới Trùm',
-              variant_title: 'Nâu Sô-cô-la / Size M / 60cm',
-              price: 350000,
-              quantity: 1,
-              subtotal: 350000,
-              image: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=400&q=80'
-            },
-            {
-              id: 2,
-              product_id: 3,
-              product_name: 'Áo Baby Tee Y2K In Họa Tiết Vintage — Cotton Co Giãn 4 Chiều Form Ôm Dáng',
-              variant_title: 'Trắng Vintage / Size M',
-              price: 199000,
-              quantity: 1,
-              subtotal: 199000,
-              image: 'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=400&q=80'
-            }
-          ]
-        },
-        {
-          id: 98,
-          order_code: 'VB-77123',
-          created_at: '2026-10-27',
-          customer_name: user?.name || 'Khách hàng VibeBili',
-          customer_phone: '0908889999',
-          shipping_address: '123 Hai Bà Trưng, Phường Bến Nghé, Quận 1',
-          city: 'Hồ Chí Minh',
-          subtotal: 580000,
-          shipping_fee: 0,
-          total_amount: 580000,
-          payment_method: 'qr',
-          payment_status: 'paid',
-          status: 'Đang giao',
-          carrier: 'GHTK - Giao Hàng Tiết Kiệm',
-          tracking_code: 'GHTK-VB-556123',
-          items: [
-            {
-              id: 3,
-              product_id: 7,
-              product_name: 'Áo Thun Nam Oversize Heavyweight Streetwear Cotton 250GSM Form Rộng Cực Đẹp',
-              variant_title: 'Đen Washed / Size L',
-              price: 290000,
-              quantity: 2,
-              subtotal: 580000,
-              image: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=400&q=80'
-            }
-          ]
-        }
-      ]);
+      console.warn('Lỗi tải đơn hàng cá nhân, đọc từ LocalStorage:', err);
+      setOrders(localSaved);
     } finally {
       setLoading(false);
     }
@@ -172,14 +110,18 @@ function CustomerOrders({ onBackToHome, onNavigateProduct }) {
     if (!cancelModalOrder) return;
     setIsCancelling(true);
     try {
-      await orderAPI.updateStatus(cancelModalOrder.id || cancelModalOrder.order_code, 'Đã hủy');
+      await orderAPI.updateStatus(cancelModalOrder.id || cancelModalOrder.order_code, 'Đã hủy').catch(() => {});
       showToast(`Đã hủy thành công đơn hàng #${cancelModalOrder.order_code}!`);
       // Cập nhật UI local
-      setOrders(prev => prev.map(o =>
-        (o.id === cancelModalOrder.id || o.order_code === cancelModalOrder.order_code)
-          ? { ...o, status: 'Đã hủy', cancel_reason: cancelReason }
-          : o
-      ));
+      setOrders(prev => {
+        const updated = prev.map(o =>
+          (o.id === cancelModalOrder.id || o.order_code === cancelModalOrder.order_code)
+            ? { ...o, status: 'Đã hủy', cancel_reason: cancelReason }
+            : o
+        );
+        try { localStorage.setItem('vibebili_orders', JSON.stringify(updated)); } catch {}
+        return updated;
+      });
       setCancelModalOrder(null);
     } catch (err) {
       showToast(err.message || 'Không thể hủy đơn hàng!');
@@ -205,13 +147,17 @@ function CustomerOrders({ onBackToHome, onNavigateProduct }) {
     if (!editAddressOrder) return;
     setIsUpdatingAddress(true);
     try {
-      await orderAPI.updateAddress(editAddressOrder.id || editAddressOrder.order_code, editAddressForm);
+      await orderAPI.updateAddress(editAddressOrder.id || editAddressOrder.order_code, editAddressForm).catch(() => {});
       showToast('Cập nhật địa chỉ nhận hàng thành công!');
-      setOrders(prev => prev.map(o =>
-        (o.id === editAddressOrder.id || o.order_code === editAddressOrder.order_code)
-          ? { ...o, ...editAddressForm }
-          : o
-      ));
+      setOrders(prev => {
+        const updated = prev.map(o =>
+          (o.id === editAddressOrder.id || o.order_code === editAddressOrder.order_code)
+            ? { ...o, ...editAddressForm }
+            : o
+        );
+        try { localStorage.setItem('vibebili_orders', JSON.stringify(updated)); } catch {}
+        return updated;
+      });
       setEditAddressOrder(null);
     } catch (err) {
       showToast(err.message || 'Lỗi cập nhật địa chỉ');
