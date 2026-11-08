@@ -1,9 +1,11 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
-// Hàm chung gửi request HTTP tới Backend
+// Hàm chung gửi request HTTP tới Backend có timeout an toàn chống treo UI
 const request = async (endpoint, options = {}) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout để UI không bao giờ bị treo
   try {
-    const token = localStorage.getItem('vibebili_token') || localStorage.getItem('wigvogue_token');
+    const token = localStorage.getItem('vibebili_token');
     const headers = {
       'Content-Type': 'application/json',
       ...options.headers,
@@ -17,15 +19,18 @@ const request = async (endpoint, options = {}) => {
       ...options,
       credentials: 'include',
       headers,
+      signal: controller.signal
     });
 
+    clearTimeout(timeoutId);
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.message || 'Lỗi xử lý từ máy chủ API');
     }
     return data;
   } catch (error) {
-    console.error(`[API Error] ${endpoint}:`, error.message);
+    clearTimeout(timeoutId);
+    console.warn(`[API Info] ${endpoint}: ${error.message}`);
     throw error;
   }
 };

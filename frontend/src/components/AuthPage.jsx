@@ -123,11 +123,15 @@ function AuthPage({ onNavigateHome, onNavigateSeller, onNavigateAdmin, initialMo
         setSuccessMessage('✅ Đăng nhập thành công! Đang chuyển hướng...');
         setTimeout(() => {
           if (res.user?.role === 'seller') {
-            onNavigateSeller();
+            if (onNavigateSeller) onNavigateSeller();
+            else onNavigateHome();
+          } else if (res.user?.role?.startsWith('admin') || res.user?.role === 'superadmin') {
+            if (onNavigateAdmin) onNavigateAdmin();
+            else onNavigateHome();
           } else {
             onNavigateHome();
           }
-        }, 600);
+        }, 500);
       } else {
         setErrorMessage(res.message);
       }
