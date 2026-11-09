@@ -257,24 +257,55 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
     return () => window.removeEventListener('paste', handlePaste);
   }, [isAddModalOpen]);
 
-  // Upload ảnh thực tế từ máy tính (FileReader Base64)
+  // Upload ảnh thực tế từ máy tính (FileReader Base64) - Hỗ trợ nhiều ảnh
   const handleImageFileChange = (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
 
-    files.forEach((file, index) => {
+    files.forEach((file) => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        if (index === 0) {
-          setNewProduct(prev => ({ ...prev, image: reader.result, imageUrlInput: '' }));
-        } else {
-          setNewProduct(prev => ({
-            ...prev,
-            angleImages: [...prev.angleImages, reader.result]
-          }));
-        }
+        setNewProduct(prev => {
+          if (!prev.image && !prev.imageUrlInput) {
+            return { ...prev, image: reader.result, imageUrlInput: '' };
+          } else {
+            return { ...prev, angleImages: [...prev.angleImages, reader.result] };
+          }
+        });
       };
       reader.readAsDataURL(file);
+    });
+    // Reset file input để có thể chọn lại file cùng tên
+    e.target.value = '';
+  };
+
+  // Xóa ảnh đại diện chính
+  const handleRemoveMainImage = () => {
+    setNewProduct(prev => {
+      if (prev.angleImages && prev.angleImages.length > 0) {
+        const nextMain = prev.angleImages[0];
+        const remainingAngles = prev.angleImages.slice(1);
+        return { ...prev, image: nextMain, imageUrlInput: '', angleImages: remainingAngles };
+      }
+      return { ...prev, image: '', imageUrlInput: '' };
+    });
+  };
+
+  // Xóa 1 ảnh góc chụp phụ theo index
+  const handleRemoveAngleImage = (indexToRemove) => {
+    setNewProduct(prev => ({
+      ...prev,
+      angleImages: prev.angleImages.filter((_, idx) => idx !== indexToRemove)
+    }));
+  };
+
+  // Đặt một ảnh góc chụp thành ảnh đại diện chính
+  const handleSetAngleAsMain = (indexToPromote) => {
+    setNewProduct(prev => {
+      const chosen = prev.angleImages[indexToPromote];
+      const remainingAngles = prev.angleImages.filter((_, idx) => idx !== indexToPromote);
+      const newAngles = prev.image ? [prev.image, ...remainingAngles] : remainingAngles;
+      return { ...prev, image: chosen, imageUrlInput: '', angleImages: newAngles };
     });
   };
 
@@ -1910,11 +1941,28 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
                   </div>
                 )}
 
-                {/* KHUNG XEM TRƯỚC ẢNH THỰC TẾ (LIVE PREVIEW) */}
-                <div className="bg-white border border-gray-200 rounded-xl p-3 flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
+                {/* KHUNG XEM TRƯỚC ẢNH THỰC TẾ (LIVE PREVIEW & QUẢN LÝ XÓA ẢNH) */}
+                <div className="bg-white border border-gray-200 rounded-xl p-3.5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black uppercase text-gray-700 tracking-wider">
+                      Ảnh đại diện chính (Cover Image):
+                    </span>
+                    {(newProduct.image || newProduct.imageUrlInput) && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveMainImage}
+                        className="text-red-600 hover:text-red-700 text-xs font-bold border border-red-200 bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition flex items-center gap-1 shadow-sm"
+                        title="Xóa ảnh đại diện này"
+                      >
+                        <span>🗑️</span>
+                        <span>Xóa ảnh chính</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center space-x-3.5">
                     {newProduct.image || newProduct.imageUrlInput ? (
-                      <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-gray-300 shadow-sm bg-gray-100 flex-shrink-0">
+                      <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-gray-300 shadow-sm bg-gray-100 flex-shrink-0 group">
                         <img
                           src={newProduct.image || newProduct.imageUrlInput}
                           alt="Xem trước ảnh sản phẩm"
@@ -1924,50 +1972,82 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
                           }}
                           className="w-full h-full object-cover"
                         />
+                        <button
+                          type="button"
+                          onClick={handleRemoveMainImage}
+                          aria-label="Xóa ảnh chính"
+                          className="absolute top-1 right-1 w-5 h-5 bg-red-600 text-white rounded-full flex items-center justify-center text-2xs font-black shadow hover:bg-red-700 transition"
+                          title="Xóa ảnh chính"
+                        >
+                          ✕
+                        </button>
                       </div>
                     ) : (
                       <div className="w-20 h-20 rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400 bg-gray-50 flex-shrink-0 text-center p-1">
                         <span className="text-xl">📷</span>
-                        <span className="text-[9px] mt-0.5">Chưa có ảnh</span>
+                        <span className="text-[9px] mt-0.5 font-bold">Chưa có ảnh</span>
                       </div>
                     )}
-                    <div>
-                      <div className="text-xs font-bold text-gray-800">
-                        {newProduct.image || newProduct.imageUrlInput ? '✓ Đã nhận ảnh sản phẩm' : 'Chưa có ảnh đại diện'}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-bold text-gray-900">
+                        {newProduct.image || newProduct.imageUrlInput ? '✓ Đã sẵn sàng ảnh bìa' : 'Chưa có ảnh đại diện'}
                       </div>
-                      <div className="text-[10px] text-gray-500 max-w-xs truncate">
-                        {newProduct.image ? (newProduct.image.startsWith('data:') ? 'Ảnh tải lên từ máy tính' : newProduct.image) : 'Vui lòng dán URL hoặc chọn file ảnh ở trên'}
+                      <div className="text-[10px] text-gray-500 truncate mt-0.5">
+                        {newProduct.image ? (newProduct.image.startsWith('data:') ? 'Ảnh tải lên từ máy tính (Base64)' : newProduct.image) : 'Vui lòng dán link URL hoặc chọn file ảnh ở trên'}
                       </div>
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        {newProduct.angleImages.length > 0 ? `Đã kèm thêm ${newProduct.angleImages.length} ảnh phụ bên dưới.` : 'Bạn có thể chọn thêm nhiều ảnh phụ cùng lúc để hiển thị bộ sưu tập góc chụp.'}
+                      </p>
                     </div>
                   </div>
 
-                  {(newProduct.image || newProduct.imageUrlInput) && (
-                    <button
-                      type="button"
-                      onClick={() => setNewProduct(prev => ({ ...prev, image: '', imageUrlInput: '', angleImages: [] }))}
-                      className="text-red-500 hover:text-red-700 text-xs font-bold border border-red-200 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition"
-                    >
-                      ✕ Xóa ảnh này
-                    </button>
+                  {/* Danh sách ảnh phụ / góc chụp khác (Hỗ trợ xóa từng ảnh độc lập) */}
+                  {newProduct.angleImages && newProduct.angleImages.length > 0 && (
+                    <div className="pt-2 border-t border-gray-100">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[11px] font-bold text-gray-800">
+                          Ảnh góc chụp bổ sung ({newProduct.angleImages.length} ảnh):
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setNewProduct(prev => ({ ...prev, angleImages: [] }))}
+                          className="text-[10px] text-red-500 hover:underline font-semibold"
+                        >
+                          Xóa tất cả ảnh phụ
+                        </button>
+                      </div>
+
+                      <div className="flex gap-2.5 overflow-x-auto pb-1.5 no-scrollbar">
+                        {newProduct.angleImages.map((img, idx) => (
+                          <div key={idx} className="relative w-16 h-16 rounded-xl overflow-hidden border border-gray-200 shadow-sm flex-shrink-0 group bg-gray-50">
+                            <img src={img} alt={`Góc ${idx + 1}`} className="w-full h-full object-cover" />
+                            
+                            {/* Nút XÓA từng ảnh phụ */}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAngleImage(idx)}
+                              aria-label={`Xóa ảnh phụ ${idx + 1}`}
+                              className="absolute top-1 right-1 w-5 h-5 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center text-2xs font-black shadow-md transition"
+                              title="Xóa ảnh này"
+                            >
+                              ✕
+                            </button>
+
+                            {/* Nút đổi làm ảnh chính */}
+                            <button
+                              type="button"
+                              onClick={() => handleSetAngleAsMain(idx)}
+                              className="absolute inset-x-0 bottom-0 bg-black/75 hover:bg-black text-[9px] text-white text-center font-bold py-0.5 opacity-90 group-hover:opacity-100 transition"
+                              title="Đặt làm ảnh đại diện chính"
+                            >
+                              Chọn làm ảnh chính
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
-
-                {/* Danh sách ảnh phụ / góc chụp khác nếu có */}
-                {newProduct.angleImages.length > 0 && (
-                  <div className="pt-2">
-                    <div className="text-[11px] font-bold text-gray-700 mb-1">Ảnh các góc bổ sung ({newProduct.angleImages.length}):</div>
-                    <div className="flex gap-2 overflow-x-auto">
-                      {newProduct.angleImages.map((img, idx) => (
-                        <div key={idx} className="relative w-14 h-14 rounded-lg overflow-hidden border border-gray-300 shadow-sm flex-shrink-0">
-                          <img src={img} alt="Góc chụp" className="w-full h-full object-cover" />
-                          <span className="absolute bottom-0 inset-x-0 bg-black/60 text-[8px] text-white text-center font-bold">
-                            Góc {idx + 1}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
 
               <div>

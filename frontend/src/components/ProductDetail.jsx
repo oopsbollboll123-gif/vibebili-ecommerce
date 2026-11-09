@@ -168,8 +168,95 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
   }, [productId]);
 
   const activeProduct = product;
-  const currentDisplayImage = activeImage || activeProduct?.main_image || DEFAULT_PRODUCT_IMAGE;
   const wishlisted = activeProduct ? isWishlisted(activeProduct.id) : false;
+
+  // Gom toàn bộ ảnh sản phẩm: ảnh chính, ảnh phụ các góc chụp (angleImages), ảnh biến thể màu sắc
+  const galleryImages = React.useMemo(() => {
+    if (!activeProduct) return [];
+    const seen = new Set();
+    const list = [];
+
+    const addImage = (url, label = '') => {
+      if (url && typeof url === 'string') {
+        const clean = url.trim();
+        if (clean.length > 5 && !['null', 'undefined'].includes(clean.toLowerCase()) && !seen.has(clean)) {
+          seen.add(clean);
+          list.push({ url: clean, label: label || `Góc ${list.length + 1}` });
+        }
+      }
+    };
+
+    // 1. Ảnh chính
+    addImage(activeProduct.main_image || activeProduct.image, 'Ảnh bìa');
+
+    // 2. Các ảnh góc chụp phụ người bán tải lên
+    const angleList = activeProduct.angle_images || activeProduct.angleImages || [];
+    angleList.forEach((u, i) => addImage(u, `Góc chụp ${i + 1}`));
+
+    // 3. Mảng images nếu có
+    if (Array.isArray(activeProduct.images)) {
+      activeProduct.images.forEach((u, i) => addImage(u, `Góc ${i + 1}`));
+    }
+
+    // 4. Ảnh trong danh mục màu sắc
+    if (Array.isArray(activeProduct.colors)) {
+      activeProduct.colors.forEach(c => {
+        if (c.image) addImage(c.image, c.name || 'Màu sắc');
+      });
+    }
+
+    if (list.length === 0) {
+      list.push({ url: DEFAULT_PRODUCT_IMAGE, label: 'Ảnh sản phẩm' });
+    }
+    return list;
+  }, [activeProduct]);
+
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isFading, setIsFading] = useState(false);
+  const [touchStartX, setTouchStartX] = useState(null);
+
+  // Chuyển ảnh với animation mượt mà
+  const switchImage = (newIdx) => {
+    if (newIdx === currentImageIndex || newIdx < 0 || newIdx >= galleryImages.length) return;
+    setIsFading(true);
+    setTimeout(() => {
+      setCurrentImageIndex(newIdx);
+      setIsFading(false);
+    }, 130);
+  };
+
+  const handlePrevImage = (e) => {
+    if (e) e.stopPropagation();
+    if (galleryImages.length <= 1) return;
+    const prevIdx = (currentImageIndex - 1 + galleryImages.length) % galleryImages.length;
+    switchImage(prevIdx);
+  };
+
+  const handleNextImage = (e) => {
+    if (e) e.stopPropagation();
+    if (galleryImages.length <= 1) return;
+    const nextIdx = (currentImageIndex + 1) % galleryImages.length;
+    switchImage(nextIdx);
+  };
+
+  // Hỗ trợ vuốt tay chuyển ảnh trên màn hình cảm ứng điện thoại
+  const handleTouchStart = (e) => {
+    setTouchStartX(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = (e) => {
+    if (touchStartX === null) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX - touchEndX;
+    if (diff > 40) {
+      handleNextImage(); // Vuốt sang trái -> Xem ảnh tiếp
+    } else if (diff < -40) {
+      handlePrevImage(); // Vuốt sang phải -> Xem ảnh trước
+    }
+    setTouchStartX(null);
+  };
+
+  const currentDisplayImage = galleryImages[currentImageIndex]?.url || DEFAULT_PRODUCT_IMAGE;
 
   // Thêm vào giỏ hàng
   const handleAddToCart = () => {
@@ -326,17 +413,24 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
 
       {/* --- KHU VỰC CHÍNH CỦA TRANG SẢN PHẨM --- */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-        {/* CỘT TRÁI (5 CỘT): Thư viện hình ảnh */}
-        <div className="lg:col-span-5 space-y-4">
-          <div className="h-[460px] md:h-[520px] bg-gray-50 rounded-2xl flex items-center justify-center border border-gray-200 relative overflow-hidden group">
-            <span className="absolute top-4 left-4 bg-red-600 text-white text-[11px] font-black px-3 py-1 rounded-md shadow-md z-10 uppercase tracking-wider">
-              HOT -30%
-            </span>
+        {/* CỘT TRÁI (5 CỘT): Thư viện hình ảnh với hiệu ứng chuyển cảnh mượt mà */}
+        <div className="lg:col-span-5 space-y-3.5">
+          {/* Khung ảnh chính — Hỗ trợ Crossfade mượt mà, Swipe vuốt trên điện thoại & Nút chuyển ảnh */}
+          <div
+            className="aspect-[3/4] sm:aspect-square md:h-[500px] bg-gray-50 rounded-2xl flex items-center justify-center border border-gray-200 relative overflow-hidden group select-none"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
+            {activeProduct.original_price && Number(activeProduct.original_price) > Number(activeProduct.price) && (
+              <span className="absolute top-4 left-4 bg-red-600 text-white text-[11px] font-black px-2.5 py-1 rounded-md shadow-md z-20 uppercase tracking-wider">
+                GIẢM {Math.round((1 - Number(activeProduct.price) / Number(activeProduct.original_price)) * 100)}%
+              </span>
+            )}
 
-            {/* Nút Thả tim (Wishlist Heart) trên ảnh */}
+            {/* Nút Thả tim (Wishlist) */}
             <button
               onClick={() => toggleWishlist(activeProduct)}
-              className={`absolute top-4 right-4 z-10 w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-90 ${
+              className={`absolute top-4 right-4 z-20 w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-90 ${
                 wishlisted ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-white/90 text-gray-400 hover:text-red-500 hover:bg-white'
               }`}
               title={wishlisted ? 'Đã lưu vào yêu thích' : 'Thêm vào yêu thích'}
@@ -344,37 +438,90 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
               <span className="text-lg leading-none">{wishlisted ? '❤️' : '🤍'}</span>
             </button>
 
+            {/* Nút mũi tên chuyển ảnh trước (PREV) */}
+            {galleryImages.length > 1 && (
+              <button
+                type="button"
+                onClick={handlePrevImage}
+                aria-label="Xem ảnh trước"
+                className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/90 hover:bg-white text-gray-900 shadow-lg flex items-center justify-center font-bold text-lg transition-all active:scale-90 opacity-90 sm:opacity-0 sm:group-hover:opacity-100"
+                title="Ảnh trước"
+              >
+                ‹
+              </button>
+            )}
+
+            {/* Nút mũi tên chuyển ảnh sau (NEXT) */}
+            {galleryImages.length > 1 && (
+              <button
+                type="button"
+                onClick={handleNextImage}
+                aria-label="Xem ảnh kế tiếp"
+                className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/90 hover:bg-white text-gray-900 shadow-lg flex items-center justify-center font-bold text-lg transition-all active:scale-90 opacity-90 sm:opacity-0 sm:group-hover:opacity-100"
+                title="Ảnh tiếp theo"
+              >
+                ›
+              </button>
+            )}
+
+            {/* Badge vị trí ảnh hiện tại */}
+            {galleryImages.length > 1 && (
+              <div className="absolute bottom-3 right-3 z-20 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                <span>{galleryImages[currentImageIndex]?.label || 'Góc chụp'}</span>
+                <span>•</span>
+                <span>{currentImageIndex + 1}/{galleryImages.length}</span>
+              </div>
+            )}
+
+            {/* Thẻ ảnh với hiệu ứng chuyển ảnh Cinematic Smooth Crossfade */}
             <img
+              key={currentDisplayImage}
               src={currentDisplayImage || DEFAULT_PRODUCT_IMAGE}
               alt={activeProduct.name}
               onError={(e) => {
                 e.currentTarget.onerror = null;
                 e.currentTarget.src = DEFAULT_PRODUCT_IMAGE;
               }}
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              className={`w-full h-full object-cover transition-all duration-300 ease-out transform ${
+                isFading ? 'opacity-30 scale-[0.97]' : 'opacity-100 scale-100'
+              } group-hover:scale-105`}
             />
           </div>
 
-          {/* Thumbnails các góc chụp / phân loại màu */}
-          <div className="grid grid-cols-4 gap-2.5">
-            {activeProduct.colors?.map((col, idx) => (
-              <div
-                key={idx}
-                onClick={() => {
-                  setSelectedColor(col.name);
-                  if (col.image) setActiveImage(col.image);
-                }}
-                className={`h-24 bg-gray-50 rounded-xl border-2 cursor-pointer flex flex-col items-center justify-center text-xs text-center p-1.5 overflow-hidden transition-all ${
-                  selectedColor === col.name ? 'border-black ring-2 ring-black/10' : 'border-gray-200 hover:border-gray-400'
-                }`}
-              >
-                {col.image && (
-                  <img src={col.image} alt={col.name} className="w-full h-14 object-cover rounded-lg mb-1" />
-                )}
-                <span className="truncate w-full font-bold text-[10px] text-gray-800">{col.name}</span>
+          {/* Dải ảnh thu nhỏ (Thumbnails Carousel) — Hỗ trợ toàn bộ ảnh góc chụp & màu sắc */}
+          {galleryImages.length > 1 && (
+            <div>
+              <div className="flex gap-2 overflow-x-auto pb-1.5 no-scrollbar">
+                {galleryImages.map((imgItem, idx) => {
+                  const isActive = currentImageIndex === idx;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => switchImage(idx)}
+                      className={`relative w-16 h-20 sm:w-20 sm:h-24 rounded-xl overflow-hidden border-2 flex-shrink-0 transition-all duration-200 text-left p-0.5 bg-gray-50 ${
+                        isActive
+                          ? 'border-black ring-2 ring-black/20 shadow-md scale-[1.03] opacity-100'
+                          : 'border-gray-200 opacity-60 hover:opacity-100 hover:border-gray-400'
+                      }`}
+                    >
+                      <img
+                        src={imgItem.url || DEFAULT_PRODUCT_IMAGE}
+                        alt={imgItem.label}
+                        className="w-full h-full object-cover rounded-lg"
+                      />
+                      <span className="absolute bottom-0 inset-x-0 bg-black/60 text-[8px] text-white text-center font-bold truncate px-0.5 py-0.5">
+                        {imgItem.label}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-            ))}
-          </div>
+              <p className="text-[10px] text-gray-400 text-center sm:text-left mt-1">
+                💡 Vuốt trái/phải hoặc bấm mũi tên để chuyển xem toàn bộ {galleryImages.length} góc chụp ảnh thực tế
+              </p>
+            </div>
+          )}
         </div>
 
         {/* CỘT PHẢI (7 CỘT): Thông tin sản phẩm, biến thể & hành động */}
