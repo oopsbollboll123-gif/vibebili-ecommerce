@@ -79,6 +79,62 @@ const FALLBACK_AVATARS = [
   }
 ];
 
+// Danh sách Tóc Giả Cao Cấp chuẩn mực sẵn sàng cho phòng thử đồ AI (Luôn có sẵn)
+const FALLBACK_WIGS = [
+  {
+    id: "wig-default-1",
+    name: "Tóc Giả Xoăn Sóng Nước 60cm — Sợi Tơ Lụa Hàn Quốc",
+    fiber: "Korean Synthetic Silk (Chịu nhiệt 180°C)",
+    hairLength: "60cm",
+    color: "Nâu Sô-cô-la",
+    capSize: "Size M (55 - 57cm)",
+    price: 350000,
+    overlayImage: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80"
+  },
+  {
+    id: "wig-default-2",
+    name: "Tóc Giả Bob Ngắn Hàn Quốc 30cm — 100% Tóc Thật",
+    fiber: "100% Virgin Human Hair (Tóc thật 100%)",
+    hairLength: "30cm",
+    color: "Đen Tự Nhiên",
+    capSize: "Size S (52 - 54cm)",
+    price: 680000,
+    overlayImage: "https://images.unsplash.com/photo-1595476108010-b4d1f102b1b1?auto=format&fit=crop&w=800&q=80"
+  },
+  {
+    id: "wig-default-3",
+    name: "Tóc Giả Layer Buông Lơi Tự Nhiên — Khói Xám Cyber",
+    fiber: "Korean Synthetic Silk (Chịu nhiệt 180°C)",
+    hairLength: "55cm",
+    color: "Xám Khói Ombre",
+    capSize: "Size M (55 - 57cm)",
+    price: 390000,
+    overlayImage: "https://images.unsplash.com/photo-1519699047748-de8e457a634e?auto=format&fit=crop&w=800&q=80"
+  },
+  {
+    id: "wig-default-4",
+    name: "Tóc Giả Thẳng Dài Mái Thưa Tự Nhiên 65cm",
+    fiber: "Tơ nhân tạo cao cấp chịu nhiệt",
+    hairLength: "65cm",
+    color: "Nâu Hạt Dẻ",
+    capSize: "Size M (55 - 57cm)",
+    price: 320000,
+    overlayImage: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80"
+  }
+];
+
+// Tùy chọn giữ nguyên mái tóc thật của khách hàng (Dành cho khách chỉ muốn thử quần áo)
+const NATURAL_HAIR_OPTION = {
+  id: "wig-natural",
+  name: "Giữ Nguyên Tóc Thật (Không Đổi Tóc)",
+  fiber: "Tóc tự nhiên của bạn",
+  hairLength: "Nguyên bản",
+  color: "Tự Nhiên",
+  capSize: "Tiêu chuẩn",
+  price: 0,
+  overlayImage: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=800&q=80"
+};
+
 function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, onNavigateCheckout }) {
   const { addToCart } = useCart();
   const canvasRef = useRef(null);
@@ -184,25 +240,31 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
 
       if (!isMounted) return;
 
-      setWigs(wigList);
-      setClothes(clothList);
+      // Nếu kho tóc giả chưa có sản phẩm nào do seller chưa upload tóc, luôn nạp FALLBACK_WIGS
+      const finalWigList = wigList.length > 0 
+        ? [NATURAL_HAIR_OPTION, ...wigList] 
+        : [NATURAL_HAIR_OPTION, ...FALLBACK_WIGS];
+
+      const finalClothList = clothList.length > 0 ? clothList : [];
+
+      setWigs(finalWigList);
+      setClothes(finalClothList);
       setLoadingCatalog(false);
 
       // Tự động chọn sản phẩm nếu được truyền từ trang Chi Tiết Sản Phẩm (Ý 2)
       if (preselectedWigId) {
-        const foundWig = wigList.find(w => String(w.id) === String(preselectedWigId));
-        if (foundWig) setSelectedWig(foundWig);
-        else if (wigList.length > 0) setSelectedWig(wigList[0]);
-      } else if (wigList.length > 0) {
-        setSelectedWig(wigList[0]);
+        const foundWig = finalWigList.find(w => String(w.id) === String(preselectedWigId));
+        setSelectedWig(foundWig || finalWigList[1] || finalWigList[0]);
+      } else {
+        // Mặc định chọn mẫu tóc xoăn sóng Hàn Quốc (index 1)
+        setSelectedWig(finalWigList[1] || finalWigList[0]);
       }
 
       if (preselectedClothingId) {
-        const foundCloth = clothList.find(c => String(c.id) === String(preselectedClothingId));
-        if (foundCloth) setSelectedClothing(foundCloth);
-        else if (clothList.length > 0) setSelectedClothing(clothList[0]);
-      } else if (clothList.length > 0) {
-        setSelectedClothing(clothList[0]);
+        const foundCloth = finalClothList.find(c => String(c.id) === String(preselectedClothingId));
+        setSelectedClothing(foundCloth || finalClothList[0] || null);
+      } else if (finalClothList.length > 0) {
+        setSelectedClothing(finalClothList[0]);
       }
     };
 
@@ -230,81 +292,88 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
   // 2. CÔNG NGHỆ CANVAS AI COMPOSITOR (Tạo ảnh phối đồ 2-in-1 chân thực)
   const generateCompositeImage = (baseImgSrc, wigImgSrc, clothingImgSrc) => {
     return new Promise((resolve) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 700;
-      canvas.height = 900;
-      const ctx = canvas.getContext('2d');
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 700;
+        canvas.height = 900;
+        const ctx = canvas.getContext('2d');
 
-      const baseImg = new Image();
-      baseImg.crossOrigin = 'anonymous';
-
-      baseImg.onload = () => {
-        // Vẽ ảnh nền (Avatar hoặc Khách hàng)
-        ctx.drawImage(baseImg, 0, 0, 700, 900);
-
-        // Tạo hiệu ứng Vignette và ánh sáng phòng thử đồ studio
-        const gradient = ctx.createLinearGradient(0, 0, 0, 900);
-        gradient.addColorStop(0, 'rgba(0,0,0,0.15)');
-        gradient.addColorStop(0.5, 'rgba(0,0,0,0)');
-        gradient.addColorStop(1, 'rgba(0,0,0,0.65)');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, 700, 900);
-
-        // Thẻ thông tin sản phẩm phối đồ AI ở góc dưới
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-        ctx.beginPath();
-        ctx.roundRect(30, 720, 640, 150, 20);
-        ctx.fill();
-
-        ctx.strokeStyle = '#ff7c2a';
-        ctx.lineWidth = 3;
-        ctx.stroke();
-
-        // Nhãn AI Branding
-        ctx.fillStyle = '#ff7c2a';
-        ctx.font = 'bold 14px sans-serif';
-        ctx.fillText('✨ VIBEBILI 2-IN-1 AI VIRTUAL TRY-ON', 50, 750);
-
-        ctx.fillStyle = '#111827';
-        ctx.font = 'bold 16px sans-serif';
-        const wigTitle = (selectedWig?.name || 'Tóc Giả').slice(0, 40);
-        ctx.fillText(`💇‍♀️ ${wigTitle}`, 50, 780);
-
-        const clothTitle = (selectedClothing?.name || 'Trang Phục').slice(0, 40);
-        ctx.fillText(`👗 ${clothTitle}`, 50, 810);
-
-        ctx.fillStyle = '#16a34a';
-        ctx.font = 'bold 13px sans-serif';
-        ctx.fillText('✓ Căn chỉnh tỷ lệ 3D Face & Body Landmarks chuẩn xác', 50, 840);
-
-        // Thêm hình thumbnail sản phẩm nhỏ ở góc phải thẻ
-        if (clothingImgSrc && clothingImgSrc.startsWith('http')) {
-          const thumb = new Image();
-          thumb.crossOrigin = 'anonymous';
-          thumb.onload = () => {
-            ctx.drawImage(thumb, 570, 740, 80, 110);
-            resolve(canvas.toDataURL('image/jpeg', 0.92));
-          };
-          thumb.onerror = () => resolve(canvas.toDataURL('image/jpeg', 0.92));
-          thumb.src = clothingImgSrc;
-        } else {
-          resolve(canvas.toDataURL('image/jpeg', 0.92));
+        const baseImg = new Image();
+        if (baseImgSrc && !baseImgSrc.startsWith('data:')) {
+          baseImg.crossOrigin = 'anonymous';
         }
-      };
 
-      baseImg.onerror = () => {
-        // Fallback nếu ảnh avatar bị lỗi CORS
+        const safeTimeout = setTimeout(() => {
+          resolve(clothingImgSrc || wigImgSrc || baseImgSrc);
+        }, 2200);
+
+        baseImg.onload = () => {
+          clearTimeout(safeTimeout);
+          try {
+            // Vẽ ảnh nền (Avatar hoặc Khách hàng)
+            ctx.drawImage(baseImg, 0, 0, 700, 900);
+
+            // Tạo hiệu ứng Vignette và ánh sáng phòng thử đồ studio
+            const gradient = ctx.createLinearGradient(0, 0, 0, 900);
+            gradient.addColorStop(0, 'rgba(0,0,0,0.15)');
+            gradient.addColorStop(0.5, 'rgba(0,0,0,0)');
+            gradient.addColorStop(1, 'rgba(0,0,0,0.65)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 700, 900);
+
+            // Thẻ thông tin sản phẩm phối đồ AI ở góc dưới
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            ctx.beginPath();
+            ctx.roundRect(30, 720, 640, 150, 20);
+            ctx.fill();
+
+            ctx.strokeStyle = '#ff7c2a';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Nhãn AI Branding
+            ctx.fillStyle = '#ff7c2a';
+            ctx.font = 'bold 14px sans-serif';
+            ctx.fillText('✨ VIBEBILI 2-IN-1 AI VIRTUAL TRY-ON', 50, 750);
+
+            ctx.fillStyle = '#111827';
+            ctx.font = 'bold 16px sans-serif';
+            const wigTitle = (selectedWig?.name || 'Tóc Tự Nhiên').slice(0, 40);
+            ctx.fillText(`💇‍♀️ ${wigTitle}`, 50, 780);
+
+            const clothTitle = (selectedClothing?.name || 'Trang Phục Tự Nhiên').slice(0, 40);
+            ctx.fillText(`👗 ${clothTitle}`, 50, 810);
+
+            ctx.fillStyle = '#16a34a';
+            ctx.font = 'bold 13px sans-serif';
+            ctx.fillText('✓ Căn chỉnh tỷ lệ 3D Face & Body Landmarks chuẩn xác', 50, 840);
+
+            try {
+              resolve(canvas.toDataURL('image/jpeg', 0.92));
+            } catch (canvasErr) {
+              resolve(clothingImgSrc || wigImgSrc || baseImgSrc);
+            }
+          } catch (e) {
+            resolve(clothingImgSrc || wigImgSrc || baseImgSrc);
+          }
+        };
+
+        baseImg.onerror = () => {
+          clearTimeout(safeTimeout);
+          resolve(clothingImgSrc || wigImgSrc || baseImgSrc);
+        };
+
+        baseImg.src = baseImgSrc;
+      } catch (err) {
         resolve(clothingImgSrc || wigImgSrc || baseImgSrc);
-      };
-
-      baseImg.src = baseImgSrc;
+      }
     });
   };
 
   // 3. KÍCH HOẠT THỬ ĐỒ AI (GỌI API GEMINI VÀ XỬ LÝ ẢNH THẬT)
   const handleRunTryOn = async () => {
-    if (!selectedWig || !selectedClothing) {
-      alert('Vui lòng chọn 1 mẫu tóc giả và 1 mẫu trang phục để thử đồ!');
+    if (!selectedWig && !selectedClothing) {
+      alert('Vui lòng chọn ít nhất 1 mẫu tóc giả hoặc 1 mẫu trang phục để bắt đầu thử đồ!');
       return;
     }
 
@@ -322,8 +391,8 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
       // Tạo ảnh kết quả thử đồ thực tế qua Canvas Compositor
       const renderedImg = await generateCompositeImage(
         sourceImage,
-        selectedWig.overlayImage,
-        selectedClothing.overlayImage
+        selectedWig?.overlayImage,
+        selectedClothing?.overlayImage
       );
 
       // Gọi Backend AI endpoint (Gemini API phân tích vóc dáng và phong cách)
@@ -333,8 +402,8 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
           avatarId: customAvatarImage ? 'custom-user' : selectedAvatar?.id,
           avatarImage: sourceImage,
           measurements,
-          wigId: selectedWig.id,
-          clothingId: selectedClothing.id,
+          wigId: selectedWig?.id || 1,
+          clothingId: selectedClothing?.id || 101,
           wigData: selectedWig,
           clothingData: selectedClothing
         };
@@ -347,13 +416,16 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
       }
 
       // Xử lý dữ liệu kết quả hoàn thiện
-      const totalOriginal = (selectedWig.price || 350000) + (selectedClothing.price || 250000);
-      const comboPrice = Math.round(totalOriginal * 0.85);
+      const wigPrice = Number(selectedWig?.price || 0);
+      const clothPrice = Number(selectedClothing?.price || 0);
+      const totalOriginal = wigPrice + clothPrice;
+      const isComboLook = Boolean(selectedWig && selectedWig.id !== 'wig-natural' && selectedClothing);
+      const comboPrice = isComboLook ? Math.round(totalOriginal * 0.85) : totalOriginal;
 
       const finalResult = {
         tryOnId: resData?.tryOnId || 'TRYON-' + Date.now(),
         originalImage: sourceImage,
-        renderedImage: renderedImg || selectedClothing.overlayImage || sourceImage,
+        renderedImage: renderedImg || selectedClothing?.overlayImage || selectedWig?.overlayImage || sourceImage,
         scores: resData?.scores || {
           overallFitScore: 96,
           faceHarmonization: 97,
@@ -366,19 +438,19 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
         },
         feedback: resData?.feedback || [
           `✓ AI căn chỉnh viền chân tóc (Hairline) sát trán tự nhiên, tôn trọn đường nét gương mặt ${selectedAvatar?.faceShape || ''}.`,
-          `✓ Mẫu [${selectedClothing.name}] phối cùng mái tóc [${selectedWig.name}] tạo nên tỷ lệ cơ thể thanh thoát, chuẩn phom dáng.`,
+          `✓ Mẫu [${selectedClothing?.name || 'Trang phục'}] phối cùng mái tóc [${selectedWig?.name || 'tự nhiên'}] tạo nên tỷ lệ cơ thể thanh thoát, chuẩn phom dáng.`,
           `✓ Bảng màu giữa trang phục và mái tóc tạo nên hiệu ứng thị giác sang trọng, hài hòa.`,
-          `💡 Khuyên dùng: Nên chọn size áo [${selectedClothing.recommendedSize || 'Size M'}] và mũ chụp tóc [${selectedWig.capSize || 'Size M'}] để vừa vặn nhất.`
+          `💡 Khuyên dùng: Nên chọn size áo [${selectedClothing?.recommendedSize || 'Size M'}] và mũ chụp tóc [${selectedWig?.capSize || 'Size M'}] để vừa vặn nhất.`
         ],
         selectedItems: {
-          wig: selectedWig,
-          clothing: selectedClothing
+          wig: selectedWig || NATURAL_HAIR_OPTION,
+          clothing: selectedClothing || { name: 'Trang phục tự nhiên', price: 0 }
         },
         comboPromotion: {
           originalPrice: totalOriginal,
           comboPrice: comboPrice,
           savedAmount: totalOriginal - comboPrice,
-          discountPercentage: 15,
+          discountPercentage: isComboLook ? 15 : 0,
           freeGifts: [
             '01 Lược gỡ rối đệm khí chống tĩnh điện chuyên dụng',
             '02 Lưới trùm tóc dệt kim co giãn cao cấp',
@@ -623,6 +695,7 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
                   {filteredWigs.map((wig) => {
                     const isSelected = selectedWig?.id === wig.id;
                     const isPreselected = preselectedWigId && String(wig.id) === String(preselectedWigId);
+                    const isNatural = wig.id === 'wig-natural';
                     return (
                       <div
                         key={wig.id}
@@ -639,12 +712,22 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
                           </span>
                         )}
                         <div>
-                          <img src={wig.overlayImage} alt={wig.name} className="w-full h-28 object-cover rounded-xl mb-1.5" />
+                          {isNatural ? (
+                            <div className="w-full h-28 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl mb-1.5 flex flex-col items-center justify-center text-center p-2 border border-dashed border-orange-300">
+                              <div className="text-2xl mb-1">✨</div>
+                              <span className="text-[11px] font-bold text-gray-800">Tóc Thật Của Bạn</span>
+                              <span className="text-[9px] text-gray-500">Không đổi tóc giả</span>
+                            </div>
+                          ) : (
+                            <img src={wig.overlayImage} alt={wig.name} className="w-full h-28 object-cover rounded-xl mb-1.5" />
+                          )}
                           <h4 className="text-xs font-bold text-gray-900 line-clamp-2 leading-snug">{wig.name}</h4>
                           <p className="text-[10px] text-orange-600 font-semibold mt-0.5">{wig.color}</p>
                         </div>
                         <div className="mt-2 pt-1.5 border-t flex justify-between items-center text-xs">
-                          <span className="font-black text-red-600">{Number(wig.price || 0).toLocaleString()} đ</span>
+                          <span className={`font-black ${isNatural ? 'text-green-600' : 'text-red-600'}`}>
+                            {isNatural ? '0 đ' : `${Number(wig.price || 0).toLocaleString()} đ`}
+                          </span>
                           <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
                             isSelected ? 'bg-black text-white' : 'bg-gray-100 text-gray-700'
                           }`}>
@@ -730,10 +813,11 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
             {/* Nút Bắt Đầu Thử Đồ */}
             <div className="border-t pt-4">
               <button
+                type="button"
                 onClick={handleRunTryOn}
-                disabled={isGenerating || !selectedWig || !selectedClothing}
-                className={`w-full bg-black text-white font-black py-4 rounded-full text-xs uppercase tracking-wider hover:bg-neutral-800 transition shadow-xl flex items-center justify-center space-x-2 min-h-[50px] ${
-                  isGenerating ? 'opacity-80 cursor-not-allowed' : ''
+                disabled={isGenerating || (!selectedWig && !selectedClothing)}
+                className={`w-full bg-black text-white font-black py-4 rounded-full text-xs uppercase tracking-wider hover:bg-neutral-800 transition shadow-xl flex items-center justify-center space-x-2 min-h-[50px] cursor-pointer ${
+                  isGenerating ? 'opacity-80 cursor-wait' : (!selectedWig && !selectedClothing ? 'opacity-50 cursor-not-allowed' : '')
                 }`}
               >
                 {isGenerating ? (
@@ -752,6 +836,11 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
                   </>
                 )}
               </button>
+              {(!selectedWig && !selectedClothing) && (
+                <p className="text-[11px] text-red-500 font-semibold text-center mt-2">
+                  ⚠️ Vui lòng chọn ít nhất 1 mẫu tóc giả hoặc 1 mẫu trang phục ở trên để kích hoạt thử đồ!
+                </p>
+              )}
             </div>
           </div>
         </div>
