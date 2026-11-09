@@ -57,15 +57,9 @@ function AdminPanel({ onNavigateHome, onNavigateLogin }) {
     pendingComplaintsCount: 2
   });
 
-  // 2. Danh sách tài khoản người dùng
+  // 2. Danh sách tài khoản người dùng (Chỉ admin thật, còn lại load từ backend/localStorage)
   const [users, setUsers] = useState([
-    { id: 1, name: "Hoàng Trọng Phúc", email: "superadmin@admin.com", role: "admin-superadmin", status: "active", phone: "0909123456", date: "2026-10-01" },
-    { id: 5, name: "Lê Minh Tuấn", email: "moderator@admin.com", role: "admin-moderator", status: "active", phone: "0918889999", date: "2026-10-15" },
-    { id: 6, name: "Phạm Thanh Hà", email: "financial@admin.com", role: "admin-financial", status: "active", phone: "0934567890", date: "2026-10-20" },
-    { id: 7, name: "Vũ Bảo Ngọc", email: "support@admin.com", role: "admin-support", status: "active", phone: "0945678901", date: "2026-10-22" },
-    { id: 2, name: "Trần Thị Mai (Wig Luxury)", email: "maitran@shop.com", role: "seller", status: "active", phone: "0912345678", date: "2026-10-26" },
-    { id: 3, name: "Lê Hoàng Long (Y2K Store)", email: "longle@fashion.vn", role: "seller", status: "active", phone: "0988776655", date: "2026-10-27" },
-    { id: 4, name: "Nguyễn Thu Thảo", email: "khachhang@gmail.com", role: "customer", status: "active", phone: "0933112233", date: "2026-10-28" }
+    { id: 1, name: 'Hoàng Trọng Phúc (Owner)', email: 'oopsbollboll123@gmail.com', role: 'admin-superadmin', status: 'active', phone: '0909123456', date: '2026-01-01' }
   ]);
 
   // 3. Danh sách sản phẩm chờ kiểm duyệt (Product Moderation)
@@ -287,7 +281,54 @@ function AdminPanel({ onNavigateHome, onNavigateLogin }) {
       }
     }).catch(() => {});
 
-    return () => { isMounted = false; };
+    // Tải danh sách seller chờ duyệt từ localStorage (do SellerRegistrationForm lưu vào)
+    try {
+      const localPending = localStorage.getItem('vibebili_pending_sellers');
+      if (localPending && isMounted) {
+        const list = JSON.parse(localPending);
+        if (list.length > 0) {
+          setPendingSellers(prev => {
+            // Merge: tránh trùng lặp theo email
+            const emails = new Set(prev.map(s => s.email));
+            const newItems = list.filter(s => !emails.has(s.email));
+            return [...newItems, ...prev];
+          });
+        }
+      }
+    } catch {}
+
+    // Lắng nghe sự kiện seller mới đăng ký realtime
+    const handleNewSeller = (e) => {
+      if (!e.detail) return;
+      setPendingSellers(prev => {
+        const exists = prev.find(s => s.email === e.detail.email);
+        if (exists) return prev;
+        return [e.detail, ...prev];
+      });
+    };
+    window.addEventListener('vibebili_new_seller_request', handleNewSeller);
+
+    // Tải danh sách user đã đăng ký từ localStorage
+    try {
+      const localUsers = localStorage.getItem('vibebili_registered_users');
+      if (localUsers && isMounted) {
+        const list = JSON.parse(localUsers);
+        if (list.length > 0) {
+          setUsers(prev => {
+            const emails = new Set(prev.map(u => u.email?.toLowerCase()));
+            const newUsers = list
+              .filter(u => !emails.has(u.email?.toLowerCase()))
+              .map(u => ({ ...u, date: u.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0] }));
+            return [...prev, ...newUsers];
+          });
+        }
+      }
+    } catch {}
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('vibebili_new_seller_request', handleNewSeller);
+    };
   }, []);
 
   // ==========================================
