@@ -3,7 +3,7 @@ import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useAuth } from '../context/AuthContext';
 import { productAPI } from '../services/api';
-import { DEFAULT_PRODUCT_IMAGE, getCleanCustomProducts, getDefaultSizesForCategory } from '../utils/productUtils';
+import { DEFAULT_PRODUCT_IMAGE, getCleanCustomProducts, getDefaultSizesForCategory, parseOptionList } from '../utils/productUtils';
 import {
   ShoppingBagIcon,
   LightningIcon,
@@ -46,6 +46,21 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
   const [quantity, setQuantity] = useState(1);
   const [activeImage, setActiveImage] = useState(null);
 
+  // Tự động chuẩn hóa nếu selectedSize hoặc selectedColor bị dính cả cụm dấu phẩy
+  useEffect(() => {
+    if (selectedSize && (selectedSize.includes(',') || selectedSize.includes(';'))) {
+      const parts = parseOptionList(selectedSize);
+      if (parts.length > 0) setSelectedSize(parts[0]);
+    }
+  }, [selectedSize]);
+
+  useEffect(() => {
+    if (selectedColor && (selectedColor.includes(',') || selectedColor.includes(';'))) {
+      const parts = parseOptionList(selectedColor);
+      if (parts.length > 0) setSelectedColor(parts[0]);
+    }
+  }, [selectedColor]);
+
   // Load product data & reviews
   useEffect(() => {
     let isMounted = true;
@@ -66,52 +81,84 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
       }
     } catch {}
 
+    // Helper trích xuất và tách riêng từng Size và Màu sắc
+    const extractOptions = (item) => {
+      const finalImg = item.main_image || item.image || DEFAULT_PRODUCT_IMAGE;
+
+      // 1. Tách Màu Sắc thành từng nút riêng (xử lý cả chuỗi "Be, Xanh than" hoặc mảng)
+      let colors = [];
+      const rawColorCandidates = [
+        item.colors,
+        item.options?.find(o => o.name?.toLowerCase().includes('màu'))?.values,
+        item.color,
+        item.mau_sac
+      ];
+      for (const c of rawColorCandidates) {
+        if (c) {
+          const parsed = parseOptionList(c);
+          if (parsed.length > 0) {
+            colors = parsed.map(cName => ({ name: cName, image: finalImg }));
+            break;
+          }
+        }
+      }
+      if (colors.length === 0) {
+        colors = [{ name: 'Mặc định', image: finalImg }];
+      }
+
+      // 2. Tách Kích Cỡ thành từng nút riêng (xử lý cả chuỗi "XS, S, M, L, XL" hoặc mảng)
+      let sizes = [];
+      const rawSizeCandidates = [
+        item.sizes,
+        item.options?.find(o => o.name?.toLowerCase().includes('cỡ') || o.name?.toLowerCase().includes('size') || o.name?.toLowerCase().includes('đầu'))?.values,
+        item.size,
+        item.size_vong_dau
+      ];
+      for (const s of rawSizeCandidates) {
+        if (s) {
+          const parsed = parseOptionList(s);
+          if (parsed.length > 0) {
+            sizes = parsed;
+            break;
+          }
+        }
+      }
+      if (sizes.length === 0) {
+        sizes = getDefaultSizesForCategory(item.category_name || item.category, item.name);
+      }
+
+      return { colors, sizes };
+    };
+
     // Tải thông tin sản phẩm
     productAPI.getById(targetId)
       .then(res => {
         if (isMounted && res.success && res.data) {
           const d = res.data;
-          const colors = d.options?.find(o => o.name.toLowerCase().includes('màu'))?.values?.map(name => ({
-            name,
-            image: d.main_image || d.image || DEFAULT_PRODUCT_IMAGE
-          })) || (d.main_image ? [{ name: 'Tiêu chuẩn', image: d.main_image }] : []);
-
-          let rawSizes = d.sizes || d.options?.find(o => o.name.toLowerCase().includes('cỡ') || o.name.toLowerCase().includes('size') || o.name.toLowerCase().includes('đầu'))?.values || [];
-          if (!rawSizes || rawSizes.length === 0 || rawSizes.every(s => s === 'Tiêu chuẩn')) {
-            rawSizes = getDefaultSizesForCategory(d.category_name || d.category, d.name);
-          }
-
+          const { colors, sizes } = extractOptions(d);
           const lengths = d.options?.find(o => o.name.toLowerCase().includes('dài'))?.values || [];
 
           setProduct({
             ...d,
             main_image: d.main_image || d.image || DEFAULT_PRODUCT_IMAGE,
-            colors: colors.length > 0 ? colors : [{ name: 'Mặc định', image: d.main_image || DEFAULT_PRODUCT_IMAGE }],
-            sizes: rawSizes,
+            colors,
+            sizes,
             hairLengths: lengths
           });
           setSelectedColor(colors[0]?.name || 'Mặc định');
-          setSelectedSize(rawSizes[0] || 'Size M (49-55kg)');
+          setSelectedSize(sizes[0] || 'Size S');
           setSelectedLength(lengths?.[0] || '');
         } else if (localProd) {
-          const colors = localProd.options?.find(o => o.name.toLowerCase().includes('màu'))?.values?.map(name => ({
-            name,
-            image: localProd.main_image || localProd.image || DEFAULT_PRODUCT_IMAGE
-          })) || [{ name: 'Tiêu chuẩn', image: localProd.main_image || localProd.image || DEFAULT_PRODUCT_IMAGE }];
-
-          let rawSizes = localProd.sizes || localProd.options?.find(o => o.name.toLowerCase().includes('cỡ') || o.name.toLowerCase().includes('size'))?.values || [];
-          if (!rawSizes || rawSizes.length === 0 || rawSizes.every(s => s === 'Tiêu chuẩn')) {
-            rawSizes = getDefaultSizesForCategory(localProd.category_name || localProd.category, localProd.name);
-          }
+          const { colors, sizes } = extractOptions(localProd);
 
           setProduct({
             ...localProd,
             main_image: localProd.main_image || localProd.image || DEFAULT_PRODUCT_IMAGE,
             colors,
-            sizes: rawSizes
+            sizes
           });
-          setSelectedColor(colors[0]?.name || 'Tiêu chuẩn');
-          setSelectedSize(rawSizes[0] || 'Size M (49-55kg)');
+          setSelectedColor(colors[0]?.name || 'Mặc định');
+          setSelectedSize(sizes[0] || 'Size S');
         } else {
           setProduct(null);
         }
@@ -120,24 +167,16 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
       .catch(() => {
         if (isMounted) {
           if (localProd) {
-            const colors = localProd.options?.find(o => o.name.toLowerCase().includes('màu'))?.values?.map(name => ({
-              name,
-              image: localProd.main_image || localProd.image || DEFAULT_PRODUCT_IMAGE
-            })) || [{ name: 'Tiêu chuẩn', image: localProd.main_image || localProd.image || DEFAULT_PRODUCT_IMAGE }];
-
-            let rawSizes = localProd.sizes || localProd.options?.find(o => o.name.toLowerCase().includes('cỡ') || o.name.toLowerCase().includes('size'))?.values || [];
-            if (!rawSizes || rawSizes.length === 0 || rawSizes.every(s => s === 'Tiêu chuẩn')) {
-              rawSizes = getDefaultSizesForCategory(localProd.category_name || localProd.category, localProd.name);
-            }
+            const { colors, sizes } = extractOptions(localProd);
 
             setProduct({
               ...localProd,
               main_image: localProd.main_image || localProd.image || DEFAULT_PRODUCT_IMAGE,
               colors,
-              sizes: rawSizes
+              sizes
             });
-            setSelectedColor(colors[0]?.name || 'Tiêu chuẩn');
-            setSelectedSize(rawSizes[0] || 'Size M (49-55kg)');
+            setSelectedColor(colors[0]?.name || 'Mặc định');
+            setSelectedSize(sizes[0] || 'Size S');
           } else {
             setProduct(null);
           }
@@ -621,31 +660,37 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
           {/* --- BỘ CHỌN BIẾN THỂ (COLOR & SIZE MATRIX) --- */}
 
           {/* 1. Chọn Màu sắc */}
-          {activeProduct.colors?.length > 0 && (
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-2">
-                1. Màu sắc: <span className="text-black font-extrabold">{selectedColor}</span>
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {activeProduct.colors.map((col) => (
-                  <button
-                    key={col.name}
-                    onClick={() => {
-                      setSelectedColor(col.name);
-                      if (col.image) setActiveImage(col.image);
-                    }}
-                    className={`min-h-[40px] px-4 py-2 text-xs rounded-xl border font-bold transition-all ${
-                      selectedColor === col.name
-                        ? 'border-black bg-black text-white shadow-sm'
-                        : 'border-gray-200 bg-white hover:border-gray-400 text-gray-800'
-                    }`}
-                  >
-                    {col.name}
-                  </button>
-                ))}
+          {activeProduct.colors?.length > 0 && (() => {
+            const displayColors = activeProduct.colors.flatMap(col => {
+              const names = parseOptionList(col.name);
+              return names.length > 0 ? names.map(n => ({ name: n, image: col.image })) : [col];
+            });
+            return (
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-2">
+                  1. Màu sắc: <span className="text-black font-extrabold">{selectedColor}</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {displayColors.map((col) => (
+                    <button
+                      key={col.name}
+                      onClick={() => {
+                        setSelectedColor(col.name);
+                        if (col.image) setActiveImage(col.image);
+                      }}
+                      className={`min-h-[40px] px-4 py-2 text-xs rounded-xl border font-bold transition-all ${
+                        selectedColor === col.name
+                          ? 'border-black bg-black text-white shadow-sm ring-2 ring-black/10'
+                          : 'border-gray-200 bg-white hover:border-gray-400 text-gray-800'
+                      }`}
+                    >
+                      {col.name}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* 2. Chọn Độ dài (nếu là Tóc Giả) */}
           {isWigProduct && activeProduct.hairLengths?.length > 0 && (
@@ -660,7 +705,7 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
                     onClick={() => setSelectedLength(len)}
                     className={`min-h-[40px] px-4 py-2 text-xs rounded-xl border font-bold transition-all ${
                       selectedLength === len
-                        ? 'border-black bg-black text-white shadow-sm'
+                        ? 'border-black bg-black text-white shadow-sm ring-2 ring-black/10'
                         : 'border-gray-200 bg-white hover:border-gray-400 text-gray-800'
                     }`}
                   >
@@ -672,45 +717,48 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
           )}
 
           {/* 3. Chọn Kích cỡ (Size Quần Áo hoặc Chu vi vòng đầu Tóc Giả) */}
-          {activeProduct.sizes?.length > 0 && (
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-gray-700">
-                  {isWigProduct ? '3. Chu vi vòng đầu' : '2. Kích cỡ (Size)'}: <span className="text-black font-extrabold">{selectedSize}</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={() => onNavigatePolicy ? onNavigatePolicy('size-guide') : null}
-                  className="text-xs text-vibe-accent hover:underline font-bold flex items-center gap-1 cursor-pointer"
-                  title="Xem hướng dẫn đo và bảng quy đổi size vòng đầu"
-                >
-                  <span>📏 Bảng quy đổi size</span>
-                  <span className="text-2xs">↗</span>
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {activeProduct.sizes.map((sz) => (
+          {activeProduct.sizes?.length > 0 && (() => {
+            const displaySizes = parseOptionList(activeProduct.sizes);
+            return (
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                    {isWigProduct ? '3. Chu vi vòng đầu' : '2. Kích cỡ (Size)'}: <span className="text-black font-extrabold">{selectedSize}</span>
+                  </label>
                   <button
-                    key={sz}
-                    onClick={() => setSelectedSize(sz)}
-                    className={`min-h-[40px] px-4 py-2 text-xs rounded-xl border font-bold transition-all ${
-                      selectedSize === sz
-                        ? 'border-black bg-black text-white shadow-sm'
-                        : 'border-gray-200 bg-white hover:border-gray-400 text-gray-800'
-                    }`}
+                    type="button"
+                    onClick={() => onNavigatePolicy ? onNavigatePolicy('size-guide') : null}
+                    className="text-xs text-vibe-accent hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                    title="Xem hướng dẫn đo và bảng quy đổi size"
                   >
-                    {sz}
+                    <span>📏 Bảng quy đổi size</span>
+                    <span className="text-2xs">↗</span>
                   </button>
-                ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {displaySizes.map((sz) => (
+                    <button
+                      key={sz}
+                      onClick={() => setSelectedSize(sz)}
+                      className={`min-h-[40px] px-4 py-2 text-xs rounded-xl border font-bold transition-all ${
+                        selectedSize === sz
+                          ? 'border-black bg-black text-white shadow-sm ring-2 ring-black/10 scale-105'
+                          : 'border-gray-200 bg-white hover:border-gray-400 text-gray-800'
+                      }`}
+                    >
+                      {sz}
+                    </button>
+                  ))}
+                </div>
+                {!isWigProduct && (
+                  <p className="text-[11px] text-gray-500 mt-2 flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
+                    <span>💡</span>
+                    <span>Gợi ý chuẩn form: Nếu nằm giữa 2 size, nên ưu tiên <strong>chọn lớn hơn 1 size</strong> để mặc thoải mái và tôn dáng nhất!</span>
+                  </p>
+                )}
               </div>
-              {!isWigProduct && (
-                <p className="text-[11px] text-gray-500 mt-2 flex items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
-                  <span>💡</span>
-                  <span>Gợi ý chuẩn form: Nếu nằm giữa 2 size, nên ưu tiên <strong>chọn lớn hơn 1 size</strong> để mặc thoải mái và tôn dáng nhất!</span>
-                </p>
-              )}
-            </div>
-          )}
+            );
+          })()}
 
           {/* 4. Số lượng đặt */}
           <div>

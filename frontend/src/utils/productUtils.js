@@ -18,6 +18,31 @@ export const isValidImageUrl = (url) => {
 };
 
 /**
+ * Tách một chuỗi hoặc mảng các tùy chọn (Size, Màu sắc) thành từng giá trị riêng lẻ
+ * Ví dụ: "XS, S, M, L, XL" hoặc ["XS, S, M, L, XL"] -> ['XS', 'S', 'M', 'L', 'XL']
+ */
+export const parseOptionList = (input) => {
+  if (!input) return [];
+  const rawArray = Array.isArray(input) ? input : [input];
+  const result = [];
+  rawArray.forEach(item => {
+    if (typeof item === 'string') {
+      item.split(/[,;\/\n\r]+/).map(s => s.trim()).filter(Boolean).forEach(s => {
+        if (!result.includes(s) && s !== 'Tiêu chuẩn') result.push(s);
+      });
+    } else if (item && typeof item === 'object') {
+      const val = item.name || item.value || '';
+      if (typeof val === 'string') {
+        val.split(/[,;\/\n\r]+/).map(s => s.trim()).filter(Boolean).forEach(s => {
+          if (!result.includes(s) && s !== 'Tiêu chuẩn') result.push(s);
+        });
+      }
+    }
+  });
+  return result;
+};
+
+/**
  * Lấy danh sách kích cỡ chuẩn theo từng ngành hàng / loại sản phẩm
  */
 export const getDefaultSizesForCategory = (categoryName = '', productName = '') => {
@@ -116,25 +141,38 @@ export const normalizeProduct = (p, fallbackIndex = 0) => {
   const price = Math.max(0, Number(String(p.price || p.gia_ban || p.base_price || 299000).replace(/[^0-9]/g, '')));
   const origPrice = Math.max(price, Number(String(p.original_price || p.originalPrice || Math.round(price * 1.3)).replace(/[^0-9]/g, '')));
 
-  // Chuẩn hóa danh sách size quần áo / tóc giả
+  // Chuẩn hóa danh sách size quần áo / tóc giả (Tự động tách "XS, S, M, L, XL" thành từng nút riêng)
   const defaultSizes = getDefaultSizesForCategory(resolvedCatName, name);
-  let resolvedSizes = defaultSizes;
-  if (Array.isArray(p.sizes) && p.sizes.length > 0 && !p.sizes.every(s => s === 'Tiêu chuẩn')) {
-    resolvedSizes = p.sizes;
-  } else if (p.size_vong_dau && typeof p.size_vong_dau === 'string') {
-    resolvedSizes = p.size_vong_dau.split(/[,;\/]+/).map(s => s.trim()).filter(Boolean);
-    if (resolvedSizes.length === 0) resolvedSizes = defaultSizes;
-  } else if (p.size && p.size !== 'Tiêu chuẩn') {
-    if (typeof p.size === 'string' && p.size.includes(',')) {
-      resolvedSizes = p.size.split(',').map(s => s.trim()).filter(Boolean);
-    } else {
-      resolvedSizes = [p.size, ...defaultSizes.filter(s => s !== p.size)];
+  let resolvedSizes = [];
+  const rawSizeCandidates = [p.sizes, p.size_vong_dau, p.size, p.options?.find(o => o.name?.toLowerCase()?.includes('size') || o.name?.toLowerCase()?.includes('cỡ'))?.values];
+  for (const c of rawSizeCandidates) {
+    if (c) {
+      const parsed = parseOptionList(c);
+      if (parsed.length > 0) {
+        resolvedSizes = parsed;
+        break;
+      }
     }
   }
+  if (resolvedSizes.length === 0) {
+    resolvedSizes = defaultSizes;
+  }
 
-  const resolvedColors = Array.isArray(p.colors) && p.colors.length > 0
-    ? p.colors
-    : [{ name: p.color || p.mau_sac || 'Tiêu chuẩn', image: finalImg }];
+  // Chuẩn hóa màu sắc: Tự động tách nếu chuỗi màu có dấu phẩy ("Be, Xanh than")
+  let resolvedColors = [];
+  const rawColorCandidates = [p.colors, p.color, p.mau_sac, p.options?.find(o => o.name?.toLowerCase()?.includes('màu'))?.values];
+  for (const c of rawColorCandidates) {
+    if (c) {
+      const parsed = parseOptionList(c);
+      if (parsed.length > 0) {
+        resolvedColors = parsed.map(cName => ({ name: cName, image: finalImg }));
+        break;
+      }
+    }
+  }
+  if (resolvedColors.length === 0) {
+    resolvedColors = [{ name: 'Mặc định', image: finalImg }];
+  }
 
   return {
     ...p,
