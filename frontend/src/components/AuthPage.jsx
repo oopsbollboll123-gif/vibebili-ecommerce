@@ -103,21 +103,27 @@ function AuthPage({ onNavigateHome, onNavigateSeller, onNavigateAdmin, initialMo
     setErrorMessage('');
     setSuccessMessage('');
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      setErrorMessage('Địa chỉ email không đúng định dạng (vd: user@example.com)!');
+    // 1. Kiểm tra Email chuẩn RFC
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    const cleanEmail = (formData.email || '').trim().toLowerCase();
+    if (!emailRegex.test(cleanEmail)) {
+      setErrorMessage('Địa chỉ email không hợp lệ (ví dụ: name@example.com)!');
       setLoading(false);
       return;
     }
 
-    if (formData.password.length < 6) {
-      setErrorMessage('Mật khẩu phải chứa ít nhất 6 ký tự để bảo vệ tài khoản!');
+    // 2. Kiểm tra Mật khẩu
+    if (!formData.password || formData.password.trim().length < 6) {
+      setErrorMessage('Mật khẩu phải chứa ít nhất 6 ký tự không tính khoảng trắng!');
       setLoading(false);
       return;
     }
+
+    // 3. Regex kiểm tra số điện thoại Việt Nam (10 số, bắt đầu bằng 03, 05, 07, 08, 09)
+    const phoneRegex = /^(0[3|5|7|8|9])[0-9]{8}$/;
 
     if (mode === 'login') {
-      const res = await login(formData.email, formData.password);
+      const res = await login(cleanEmail, formData.password);
       setLoading(false);
       if (res.success) {
         setSuccessMessage('✅ Đăng nhập thành công! Đang chuyển hướng...');
@@ -136,23 +142,27 @@ function AuthPage({ onNavigateHome, onNavigateSeller, onNavigateAdmin, initialMo
         setErrorMessage(res.message);
       }
     } else if (mode === 'register_customer') {
-      if (!formData.name?.trim()) {
-        setErrorMessage('Vui lòng nhập họ và tên của bạn!');
+      const cleanName = (formData.name || '').trim();
+      const cleanPhone = (formData.phone || '').trim().replace(/[\s.-]/g, '');
+
+      if (cleanName.length < 2 || !/[a-zA-ZÀ-ỹ]/.test(cleanName)) {
+        setErrorMessage('Họ và tên không hợp lệ! Vui lòng nhập họ và tên thật có ít nhất 2 ký tự.');
         setLoading(false);
         return;
       }
-      if (!formData.phone?.trim()) {
-        setErrorMessage('Vui lòng nhập số điện thoại để nhận thông báo đơn hàng!');
+
+      if (!phoneRegex.test(cleanPhone)) {
+        setErrorMessage('Số điện thoại không hợp lệ! Vui lòng nhập đúng số điện thoại 10 chữ số (vd: 0909123456).');
         setLoading(false);
         return;
       }
 
       const res = await register({
-        name: formData.name.trim(),
-        email: formData.email.trim(),
+        name: cleanName,
+        email: cleanEmail,
         password: formData.password,
-        phone: formData.phone.trim(),
-        address: formData.address,
+        phone: cleanPhone,
+        address: formData.address?.trim() || '',
         role: 'customer'
       });
       setLoading(false);
@@ -163,37 +173,49 @@ function AuthPage({ onNavigateHome, onNavigateSeller, onNavigateAdmin, initialMo
         setErrorMessage(res.message);
       }
     } else if (mode === 'register_seller') {
-      if (!formData.shop_name?.trim()) {
-        setErrorMessage('Vui lòng nhập Tên Gian Hàng / Shop Name!');
+      const cleanShop = (formData.shop_name || '').trim();
+      const cleanOwner = (formData.owner_name || '').trim();
+      const cleanPhone = (formData.phone || '').trim().replace(/[\s.-]/g, '');
+      const cleanWarehouse = (formData.warehouse_address || '').trim();
+      const cleanCccd = (formData.identity_card || '').trim();
+
+      if (cleanShop.length < 3) {
+        setErrorMessage('Tên Gian Hàng / Shop Name phải có ít nhất 3 ký tự!');
         setLoading(false);
         return;
       }
-      if (!formData.owner_name?.trim()) {
-        setErrorMessage('Vui lòng nhập Họ tên chủ sở hữu gian hàng!');
+      if (cleanOwner.length < 2 || !/[a-zA-ZÀ-ỹ]/.test(cleanOwner)) {
+        setErrorMessage('Họ tên chủ gian hàng không hợp lệ (tối thiểu 2 ký tự)!');
         setLoading(false);
         return;
       }
-      if (!formData.phone?.trim()) {
-        setErrorMessage('Vui lòng nhập Số điện thoại hotline gian hàng!');
+      if (!phoneRegex.test(cleanPhone)) {
+        setErrorMessage('Số điện thoại hotline không hợp lệ! Vui lòng nhập đúng 10 số (vd: 0912345678).');
         setLoading(false);
         return;
       }
-      if (!formData.warehouse_address?.trim()) {
-        setErrorMessage('Vui lòng nhập Địa chỉ kho xuất hàng & đổi trả!');
+      if (cleanWarehouse.length < 5) {
+        setErrorMessage('Vui lòng nhập địa chỉ kho xuất hàng cụ thể (tối thiểu 5 ký tự)!');
+        setLoading(false);
+        return;
+      }
+
+      if (cleanCccd && !/^[0-9]{9}$|^[0-9]{12}$/.test(cleanCccd)) {
+        setErrorMessage('Số CCCD/CMND không hợp lệ! Vui lòng nhập đúng 9 hoặc 12 chữ số.');
         setLoading(false);
         return;
       }
 
       const res = await registerSeller({
-        shop_name: formData.shop_name.trim(),
-        owner_name: formData.owner_name.trim(),
-        email: formData.email.trim(),
+        shop_name: cleanShop,
+        owner_name: cleanOwner,
+        email: cleanEmail,
         password: formData.password,
-        phone: formData.phone.trim(),
-        warehouse_address: formData.warehouse_address.trim(),
+        phone: cleanPhone,
+        warehouse_address: cleanWarehouse,
         business_type: formData.business_type,
-        identity_card: formData.identity_card?.trim(),
-        description: formData.description?.trim()
+        identity_card: cleanCccd,
+        description: formData.description?.trim() || ''
       });
       setLoading(false);
       if (res.success) {

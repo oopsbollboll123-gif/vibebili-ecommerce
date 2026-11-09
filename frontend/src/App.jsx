@@ -176,10 +176,8 @@ function MainApp() {
 
   const handleQuickAddToCart = (e, product) => {
     e.stopPropagation();
-    addToCart(product, null, 1, {
-      color: 'Mặc định',
-      size: 'Tiêu chuẩn'
-    });
+    // Chuyển hướng tới trang chi tiết để khách hàng chủ động chọn đúng Size & Màu sắc phù hợp
+    handleProductClick(product.id);
   };
 
   // Xử lý gửi đăng ký nhận voucher 100k ở Footer
@@ -295,10 +293,10 @@ function MainApp() {
 
           {/* Actions */}
           <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
-            {/* Wishlist */}
+            {/* Wishlist - Ẩn trên mobile vì đã có Bottom Bar */}
             <button
               onClick={() => { setCurrentView('wishlist'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              className={`relative inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold transition-all border ${
+              className={`relative hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold transition-all border ${
                 currentView === 'wishlist'
                   ? 'bg-red-50 text-red-600 border-red-200'
                   : 'bg-transparent text-vibe-700 border-vibe-border hover:border-vibe-400 hover:bg-white'
@@ -312,10 +310,10 @@ function MainApp() {
               )}
             </button>
 
-            {/* Orders */}
+            {/* Orders - Ẩn trên mobile vì đã có Bottom Bar */}
             <button
               onClick={() => { setCurrentView('orders'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold transition-all border ${
+              className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold transition-all border ${
                 currentView === 'orders'
                   ? 'bg-vibe-ink text-white border-vibe-ink'
                   : 'bg-transparent text-vibe-700 border-vibe-border hover:border-vibe-400 hover:bg-white'
@@ -427,19 +425,19 @@ function MainApp() {
       </header>
 
       {/* 3. Main Content Views */}
-      <div className="flex-1">
+      <div className="flex-1 pb-16 md:pb-0">
         {currentView === 'home' && (
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 md:py-10">
+          <main className="max-w-7xl mx-auto px-3 sm:px-6 py-5 md:py-10">
 
             {/* ── Hero Banner ── Clean, editorial style */}
-            <div className="relative rounded-3xl overflow-hidden mb-10 bg-vibe-950 text-white shadow-card-lg">
-              <div className="flex flex-col md:flex-row items-center justify-between p-8 md:p-12 lg:p-16 gap-8">
-                <div className="space-y-5 max-w-lg z-10">
-                  <div className="inline-flex items-center gap-2 bg-white/10 text-white text-2xs font-semibold uppercase px-3.5 py-1.5 rounded-full tracking-widest border border-white/20">
+            <div className="relative rounded-3xl overflow-hidden mb-8 md:mb-10 bg-vibe-950 text-white shadow-card-lg">
+              <div className="flex flex-col md:flex-row items-center justify-between p-5 sm:p-10 md:p-12 lg:p-16 gap-6 md:gap-8">
+                <div className="space-y-4 md:space-y-5 max-w-lg z-10 text-center md:text-left">
+                  <div className="inline-flex items-center gap-2 bg-white/10 text-white text-2xs font-semibold uppercase px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full tracking-widest border border-white/20">
                     <SparklesIcon className="w-3.5 h-3.5 text-vibe-accent" />
                     <span>Bộ Sưu Tập 2026 — VibeBili.vn</span>
                   </div>
-                  <h1 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight leading-[1.05]">
+                  <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-tight leading-[1.05]">
                     VIBE<span className="text-vibe-accent">BILI</span>
                     <span className="text-2xl md:text-3xl font-bold text-vibe-400 lowercase">.vn</span>
                   </h1>
@@ -913,6 +911,64 @@ function MainApp() {
           © 2026 VibeBili.vn — "Biến hóa mỗi ngày, trọn vẹn phong cách"
         </div>
       </footer>
+
+      {/* 4. Thanh Điều Hướng Đáy Màn Hình Cho Điện Thoại (Mobile Bottom Navigation Bar) */}
+      <nav aria-label="Điều hướng di động" className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-vibe-border shadow-2xl px-2 py-1.5 flex justify-around items-center">
+        <button
+          onClick={() => { setCurrentView('home'); setSelectedCategory('all'); setSearchQuery(''); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition ${
+            currentView === 'home' ? 'text-vibe-accent font-bold' : 'text-vibe-muted hover:text-vibe-ink'
+          }`}
+        >
+          <span className="text-lg leading-none">🏠</span>
+          <span className="text-[10px] mt-1 font-medium">Trang chủ</span>
+        </button>
+
+        <button
+          onClick={() => { setCurrentView('combo'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition ${
+            currentView === 'combo' ? 'text-vibe-accent font-bold' : 'text-vibe-muted hover:text-vibe-ink'
+          }`}
+        >
+          <span className="text-lg leading-none">✨</span>
+          <span className="text-[10px] mt-1 font-medium">Combo</span>
+        </button>
+
+        <button
+          onClick={() => { setCurrentView('try-on'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          className={`relative flex flex-col items-center justify-center py-1 px-3 rounded-xl transition ${
+            currentView === 'try-on' ? 'text-vibe-accent font-bold' : 'text-vibe-muted hover:text-vibe-ink'
+          }`}
+        >
+          <span className="text-lg leading-none">🪞</span>
+          <span className="text-[10px] mt-1 font-medium">Thử Đồ AI</span>
+          <span className="absolute -top-1 right-1 bg-red-600 text-white text-[8px] font-black px-1 rounded-full animate-pulse">HOT</span>
+        </button>
+
+        <button
+          onClick={() => { setCurrentView('orders'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition ${
+            currentView === 'orders' ? 'text-vibe-accent font-bold' : 'text-vibe-muted hover:text-vibe-ink'
+          }`}
+        >
+          <span className="text-lg leading-none">🧾</span>
+          <span className="text-[10px] mt-1 font-medium">Đơn mua</span>
+        </button>
+
+        <button
+          onClick={() => {
+            if (isSeller) setCurrentView('seller');
+            else setCurrentView('login');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition ${
+            currentView === 'seller' || currentView === 'login' ? 'text-vibe-accent font-bold' : 'text-vibe-muted hover:text-vibe-ink'
+          }`}
+        >
+          <span className="text-lg leading-none">{isSeller ? '🏪' : '👤'}</span>
+          <span className="text-[10px] mt-1 font-medium">{isSeller ? 'Kênh Shop' : 'Tài khoản'}</span>
+        </button>
+      </nav>
     </div>
   );
 }

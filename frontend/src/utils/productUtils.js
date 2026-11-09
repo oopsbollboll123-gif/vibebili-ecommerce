@@ -17,6 +17,21 @@ export const isValidImageUrl = (url) => {
 };
 
 /**
+ * Lấy danh sách kích cỡ chuẩn theo từng ngành hàng / loại sản phẩm
+ */
+export const getDefaultSizesForCategory = (categoryName = '', productName = '') => {
+  const str = `${categoryName} ${productName}`.toLowerCase();
+  if (str.includes('tóc') || str.includes('wig')) {
+    return ['Size S (52-54cm)', 'Size M (55-57cm)', 'Size L (58-60cm)'];
+  }
+  if (str.includes('quần jean') || str.includes('quần baggy') || str.includes('quần tây') || str.includes('jeans')) {
+    return ['Size 28 (45-52kg)', 'Size 29 (53-58kg)', 'Size 30 (59-64kg)', 'Size 31 (65-70kg)', 'Size 32 (71-76kg)', 'Size 34 (> 76kg)'];
+  }
+  // Mặc định cho toàn bộ quần áo thời trang nam/nữ, áo thun, áo khoác, đầm, váy, combo
+  return ['Size S (40-48kg)', 'Size M (49-55kg)', 'Size L (56-65kg)', 'Size XL (66-75kg)', 'Size 2XL (> 75kg)'];
+};
+
+/**
  * Chuẩn hóa cấu trúc sản phẩm đồng nhất cho toàn hệ thống
  * Đảm bảo cả main_image và image, category_name và category đều luôn có dữ liệu hợp lệ
  */
@@ -46,6 +61,19 @@ export const normalizeProduct = (p, fallbackIndex = 0) => {
     name.toLowerCase().includes('combo')
   );
 
+  // Chuẩn hóa danh sách size quần áo / tóc giả
+  const defaultSizes = getDefaultSizesForCategory(catName, name);
+  let resolvedSizes = defaultSizes;
+  if (Array.isArray(p.sizes) && p.sizes.length > 0 && !p.sizes.every(s => s === 'Tiêu chuẩn')) {
+    resolvedSizes = p.sizes;
+  } else if (p.size && p.size !== 'Tiêu chuẩn') {
+    resolvedSizes = [p.size, ...defaultSizes.filter(s => s !== p.size)];
+  }
+
+  const resolvedColors = Array.isArray(p.colors) && p.colors.length > 0
+    ? p.colors
+    : [{ name: p.color || 'Tiêu chuẩn', image: finalImg }];
+
   return {
     ...p,
     id: p.id || (Date.now() + fallbackIndex),
@@ -64,10 +92,11 @@ export const normalizeProduct = (p, fallbackIndex = 0) => {
     rating: Number(p.rating) || 5.0,
     sold_count: p.sold_count !== undefined ? Number(p.sold_count) : 0,
     is_combo: isCombo,
+    sizes: resolvedSizes,
     description: p.description || 'Sản phẩm chính hãng chất lượng cao trên sàn VibeBili.',
-    options: Array.isArray(p.options) && p.options.length > 0 ? p.options : [
-      { name: 'Màu sắc', values: [p.color || 'Tiêu chuẩn'] },
-      { name: 'Kích cỡ', values: [p.size || 'Tiêu chuẩn'] }
+    options: [
+      { name: 'Màu sắc', values: resolvedColors.map(c => typeof c === 'string' ? c : c.name) },
+      { name: 'Kích cỡ', values: resolvedSizes }
     ]
   };
 };

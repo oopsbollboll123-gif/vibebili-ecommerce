@@ -52,11 +52,11 @@ function CartDrawer({ onNavigateCheckout }) {
       ></div>
 
       {/* 2. Khung Drawer trượt từ phải sang */}
-      <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
+      <div className="absolute inset-y-0 right-0 max-w-full flex pl-0 sm:pl-10">
         <div className="w-screen max-w-md bg-white shadow-2xl flex flex-col transform transition-transform duration-300 ease-out">
           
           {/* Header của Drawer */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-200">
             <div>
               <h2 className="text-base font-black uppercase tracking-wider flex items-center space-x-2">
                 <ShoppingBagIcon className="w-5 h-5 text-gray-900" />
@@ -97,7 +97,7 @@ function CartDrawer({ onNavigateCheckout }) {
           </div>
 
           {/* Body: Danh sách sản phẩm trong giỏ */}
-          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
             {cartItems.length === 0 ? (
               <div className="text-center py-20 text-gray-500 space-y-3">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto text-gray-400">
@@ -179,7 +179,7 @@ function CartDrawer({ onNavigateCheckout }) {
 
           {/* Footer: Chọn Voucher, Tổng tiền & Nút Thanh Toán */}
           {cartItems.length > 0 && (
-            <div className="border-t border-gray-200 p-6 bg-gray-50/80 space-y-3">
+            <div className="border-t border-gray-200 p-4 sm:p-6 bg-gray-50/80 space-y-3">
               {/* Voucher Chips */}
               <div>
                 <span className="text-[11px] font-bold text-gray-700 block mb-1.5">Mã Giảm Giá Sẵn Có:</span>
