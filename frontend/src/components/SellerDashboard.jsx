@@ -138,15 +138,17 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
     productAPI.getAll()
       .then(res => {
         if (isMounted) {
-          let list = (res.success && res.data) ? res.data.map(p => ({
+          let list = (res.success && res.data) ? res.data.map((p, idx) => normalizeProduct({
+            ...p,
             id: p.id,
             name: p.name,
-            category: p.category_name || 'Tóc Giả Cao Cấp',
+            category: p.category_name || p.category,
+            category_name: p.category_name || p.category,
             price: Number(p.price || 0),
             stock: p.variants?.[0]?.stock || p.stock || 20,
             status: p.status || "Đang bán",
-            image: p.main_image || p.image || ""
-          })) : [];
+            image: p.main_image || p.image || p.link_anh || ""
+          }, idx)) : [];
 
           // Kết hợp sản phẩm lưu trong localStorage
           try {
@@ -154,7 +156,7 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
             if (saved) {
               const localItems = JSON.parse(saved);
               const existingIds = new Set(list.map(x => x.id));
-              const newLocals = localItems.filter(x => !existingIds.has(x.id));
+              const newLocals = localItems.filter(x => !existingIds.has(x.id)).map((x, idx) => normalizeProduct(x, idx));
               list = [...newLocals, ...list];
             }
           } catch {}
@@ -164,8 +166,8 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
       })
       .catch(() => {
         try {
-          const saved = localStorage.getItem('vibebili_custom_products');
-          if (saved) setProducts(JSON.parse(saved));
+          const clean = getCleanCustomProducts();
+          if (clean.length > 0) setProducts(clean);
         } catch {}
       });
 
@@ -478,19 +480,34 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
 
           const headers = allRows[0].map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
           
-          const getIndex = (aliases, fallbackIdx) => {
-            const idx = headers.findIndex(h => aliases.some(a => h.includes(a)));
-            return idx !== -1 ? idx : fallbackIdx;
+          const getIndex = (exactList, aliasList, fallbackIdx) => {
+            // 1. So khớp chính xác hoàn toàn (exact match)
+            let idx = headers.findIndex(h => exactList.includes(h) || exactList.includes(h.replace(/\s+/g, '_')));
+            if (idx !== -1) return idx;
+
+            // 2. So khớp theo từ nguyên vẹn (word boundary, tránh d-anh-muc khớp 'anh')
+            idx = headers.findIndex(h => {
+              const tokens = h.split(/[\s_.-]+/);
+              return aliasList.some(a => tokens.includes(a));
+            });
+            if (idx !== -1) return idx;
+
+            return fallbackIdx;
           };
 
-          const nameIdx = getIndex(['ten', 'name', 'title'], 0);
-          const catIdx = getIndex(['danh_muc', 'category', 'loai'], 1);
-          const priceIdx = getIndex(['gia', 'price'], 2);
-          const stockIdx = getIndex(['kho', 'stock', 'ton'], 3);
-          const colorIdx = getIndex(['mau', 'color'], 4);
-          const sizeIdx = getIndex(['size', 'co', 'dau'], 5);
-          const descIdx = getIndex(['mo_ta', 'desc'], 6);
-          const imgIdx = getIndex(['anh', 'image', 'hinh', 'img', 'link_anh', 'url'], 7);
+          const nameIdx = getIndex(['ten_san_pham', 'ten', 'name', 'title'], ['ten', 'name', 'title'], 0);
+          const catIdx = getIndex(['danh_muc', 'category', 'loai', 'phan_loai'], ['danh_muc', 'category', 'loai'], 1);
+          const priceIdx = getIndex(['gia_ban', 'gia', 'price', 'don_gia'], ['gia', 'price'], 2);
+          const stockIdx = getIndex(['ton_kho', 'kho', 'stock', 'ton'], ['kho', 'stock', 'ton'], 3);
+          const colorIdx = getIndex(['mau_sac', 'mau', 'color'], ['mau', 'color'], 4);
+          const sizeIdx = getIndex(['size_vong_dau', 'size', 'co', 'kich_co'], ['size', 'co', 'dau'], 5);
+          const descIdx = getIndex(['mo_ta', 'desc', 'description'], ['mota', 'mo_ta', 'desc'], 6);
+          // Cột link ảnh: Ưu tiên link_anh, hinh_anh, image, url... Tuyệt đối không match d-anh-muc
+          const imgIdx = getIndex(
+            ['link_anh', 'hinh_anh', 'image', 'img', 'main_image', 'imageurl', 'url', 'photo', 'picture'],
+            ['anh', 'image', 'hinh', 'img', 'photo', 'picture'],
+            7
+          );
 
           const rows = [];
           for (let i = 1; i < allRows.length; i++) {
@@ -498,17 +515,36 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
             if (values.length >= 2 && values[nameIdx]) {
               const cleanPrice = Number(String(values[priceIdx] || '').replace(/[^0-9]/g, '')) || 350000;
               const cleanStock = Number(String(values[stockIdx] || '').replace(/[^0-9]/g, '')) || 50;
-              const rawImg = (imgIdx !== -1 && values[imgIdx]) ? values[imgIdx] : '';
+
+              // Tìm link ảnh: Ưu tiên cột imgIdx, nếu cột đó không phải URL thì tự quét các cột tìm link http:// hoặc https://
+              let rawImg = (imgIdx !== -1 && values[imgIdx]) ? String(values[imgIdx]).trim() : '';
+              if (!rawImg.startsWith('http://') && !rawImg.startsWith('https://') && !rawImg.startsWith('data:image/')) {
+                const foundHttp = values.find(v => typeof v === 'string' && (v.trim().startsWith('http://') || v.trim().startsWith('https://') || v.trim().startsWith('data:image/')));
+                if (foundHttp) rawImg = foundHttp.trim();
+              }
+
+              // Chuẩn hóa danh mục (Tránh lỗi phân biệt hoa/thường 'Thời trang nữ' -> 'Tóc Giả Cao Cấp')
+              let rawCat = (catIdx !== -1 && values[catIdx]) ? String(values[catIdx]).trim() : '';
+              const catLower = rawCat.toLowerCase();
+              if (catLower.includes('nam')) rawCat = 'Thời Trang Nam';
+              else if (catLower.includes('nữ') || catLower.includes('nu') || catLower.includes('thời trang') || catLower.includes('áo') || catLower.includes('quần') || catLower.includes('đầm') || catLower.includes('váy')) rawCat = 'Thời Trang Nữ';
+              else if (catLower.includes('combo')) rawCat = 'Outfit x Hairstyle Combo';
+              else if (catLower.includes('tóc') || catLower.includes('wig')) rawCat = 'Tóc Giả Cao Cấp';
+              else if (!rawCat) rawCat = 'Thời Trang Nữ';
 
               rows.push({
                 name: values[nameIdx] || `Sản phẩm SKU ${i}`,
-                category: values[catIdx] || 'Tóc Giả Cao Cấp',
+                category: rawCat,
+                category_name: rawCat,
                 price: cleanPrice,
                 stock: cleanStock,
                 color: values[colorIdx] || 'Tiêu chuẩn',
                 size: values[sizeIdx] || 'Tiêu chuẩn',
+                size_vong_dau: values[sizeIdx] || 'Tiêu chuẩn',
                 description: values[descIdx] || '',
-                image: rawImg
+                image: rawImg,
+                main_image: rawImg,
+                link_anh: rawImg
               });
             }
           }
@@ -1029,6 +1065,22 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
                 >
                   <span>📤 Xuất Danh Sách SKU</span>
                 </button>
+                {products.length > 0 && (
+                  <button
+                    onClick={() => {
+                      if (confirm(`⚠️ Bạn có chắc chắn muốn XÓA TẤT CẢ ${products.length} sản phẩm SKU hiện tại để nhập lại file CSV sạch sẽ? Hành động này không thể hoàn tác!`)) {
+                        localStorage.removeItem('vibebili_custom_products');
+                        setProducts([]);
+                        window.dispatchEvent(new CustomEvent('vibebili_products_updated'));
+                        alert('✅ Đã xóa toàn bộ sản phẩm SKU. Bây giờ bạn có thể bấm "Nhập Hàng Loạt (Bulk)" để tải file CSV mới!');
+                      }
+                    }}
+                    className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-bold px-3 py-2 rounded-full transition flex items-center space-x-1"
+                    title="Xóa toàn bộ SKU để nhập lại từ đầu"
+                  >
+                    <span>🗑️ Xóa Tất Cả SKU</span>
+                  </button>
+                )}
                 <button
                   onClick={() => setIsAddModalOpen(true)}
                   className="bg-red-600 hover:bg-red-700 text-white text-xs font-black px-4 py-2 rounded-full transition flex items-center space-x-1 shadow"

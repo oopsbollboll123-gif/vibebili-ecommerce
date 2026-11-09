@@ -234,9 +234,28 @@ const bulkCreateProducts = async (req, res) => {
 
   for (const item of items) {
     if (!item.name || !item.price) continue;
-    const isCombo = Boolean(item.is_combo || (item.category && item.category.toLowerCase().includes('combo')));
-    const catId = isCombo ? 3 : (item.category?.includes('Thời Trang Nam') ? 6 : (item.category?.includes('Thời Trang') ? 2 : 1));
-    const catName = isCombo ? 'Outfit x Hairstyle Combo' : (catId === 6 ? 'Thời Trang Nam' : (catId === 2 ? 'Thời Trang Nữ' : 'Tóc Giả Cao Cấp'));
+    const rawCat = (item.category || item.category_name || item.danh_muc || '').toLowerCase();
+    const isCombo = Boolean(item.is_combo || rawCat.includes('combo') || item.name.toLowerCase().includes('combo'));
+    
+    let catId = 1;
+    let catName = 'Tóc Giả Cao Cấp';
+    if (isCombo) {
+      catId = 3;
+      catName = 'Outfit x Hairstyle Combo';
+    } else if (rawCat.includes('nam')) {
+      catId = 6;
+      catName = 'Thời Trang Nam';
+    } else if (rawCat.includes('nữ') || rawCat.includes('nu') || rawCat.includes('thời trang') || rawCat.includes('áo') || rawCat.includes('quần') || rawCat.includes('đầm') || rawCat.includes('váy')) {
+      catId = 2;
+      catName = 'Thời Trang Nữ';
+    } else if (rawCat.includes('tóc') || rawCat.includes('wig')) {
+      catId = 1;
+      catName = 'Tóc Giả Cao Cấp';
+    } else {
+      catId = item.category_id ? Number(item.category_id) : 2;
+      catName = item.category || item.category_name || 'Thời Trang Nữ';
+    }
+
     const defaultImg = item.image || item.main_image || item.link_anh || item.hinh_anh || '';
 
     const newProd = {
