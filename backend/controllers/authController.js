@@ -1,9 +1,48 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const nodemailer = require('nodemailer');
 const db = require('../config/db');
 const { JWT_SECRET, JWT_REFRESH_SECRET } = require('../middleware/authMiddleware');
 const mockData = require('../data/mockData');
 const { logAudit } = require('../services/auditService');
+
+// ============================================================
+// ADMIN ACCOUNT: CHỈ 1 TÀI KHOẢN DUY NHẤT — KHÔNG CHO ĐĂNG KÝ THÊM
+// ============================================================
+const ADMIN_EMAIL = 'oopsbollboll123@gmail.com';
+
+// Kho lưu OTP tạm thời trong bộ nhớ (tự xóa sau 10 phút)
+// Trong production nên dùng Redis; ở đây dùng Map cho đơn giản
+const otpStore = new Map();
+// otpStore: { email: { otp: '123456', expiresAt: Date, attempts: 0 } }
+
+// Tạo Nodemailer transporter (Gmail SMTP)
+const createTransporter = () => {
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.GMAIL_USER || ADMIN_EMAIL,
+      pass: process.env.GMAIL_APP_PASSWORD || '' // App Password từ .env
+    }
+  });
+};
+
+// Gửi email qua Gmail
+const sendEmail = async ({ to, subject, html }) => {
+  try {
+    const transporter = createTransporter();
+    await transporter.sendMail({
+      from: `"VibeBili.vn" <${process.env.GMAIL_USER || ADMIN_EMAIL}>`,
+      to,
+      subject,
+      html
+    });
+    return true;
+  } catch (err) {
+    console.error('[Nodemailer] Lỗi gửi email:', err.message);
+    return false;
+  }
+};
 
 // Tạo Access Token ngắn hạn (15 phút) - Lưu tại Memory / Header
 const generateAccessToken = (user) => {
@@ -526,6 +565,268 @@ const logout = async (req, res) => {
   });
 };
 
+  return res.status(200).json({
+    success: true,
+    message: 'Đăng xuất tài khoản và vô hiệu hóa Session an toàn!'
+  });
+};
+
+// ============================================================
+// 9. QUÊN MẬT KHẨU — Gửi OTP 6 chữ số đến Gmail (hết hạn 10 phút)
+// ============================================================
+const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ success: false, message: 'Vui lòng nhập địa chỉ email!' });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+
+  // Kiểm tra email tồn tại trong hệ thống
+  let userExists = false;
+  try {
+    const [rows] = await db.query('SELECT id FROM Users WHERE email = ?', [cleanEmail]);
+    userExists = rows.length > 0;
+  } catch {
+    // Fallback: kiểm tra mockData
+    userExists = mockData.users.some(u => u.email?.toLowerCase() === cleanEmail);
+  }
+
+  // Với admin email: luôn cho phép reset
+  if (cleanEmail === ADMIN_EMAIL) userExists = true;
+
+  if (!userExists) {
+    return res.status(404).json({
+      success: false,
+      message: 'Không tìm thấy tài khoản với email này! Vui lòng kiểm tra lại.'
+    });
+  }
+
+  // Tạo OTP 6 chữ số ngẫu nhiên
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = Date.now() + 10 * 60 * 1000; // 10 phút
+
+  // Lưu OTP vào bộ nhớ
+  otpStore.set(cleanEmail, { otp, expiresAt, attempts: 0 });
+
+  // Tự động xóa OTP sau 10 phút
+  setTimeout(() => {
+    if (otpStore.has(cleanEmail) && otpStore.get(cleanEmail).otp === otp) {
+      otpStore.delete(cleanEmail);
+    }
+  }, 10 * 60 * 1000);
+
+  // Gửi email OTP
+  const emailSent = await sendEmail({
+    to: cleanEmail,
+    subject: '🔐 Mã OTP Khôi Phục Mật Khẩu VibeBili.vn',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; background: #fff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb;">
+        <div style="background: #1a1a2e; padding: 24px; text-align: center;">
+          <h1 style="color: #fff; margin: 0; font-size: 24px; font-weight: 900; letter-spacing: -0.5px;">
+            VIBE<span style="color: #ff7c2a;">BILI</span><span style="color: #666; font-size: 16px;">.vn</span>
+          </h1>
+        </div>
+        <div style="padding: 32px; text-align: center;">
+          <h2 style="color: #1a1a2e; font-size: 20px; margin-bottom: 8px;">Khôi Phục Mật Khẩu</h2>
+          <p style="color: #6b7280; font-size: 14px; margin-bottom: 24px;">
+            Bạn đã yêu cầu đặt lại mật khẩu. Vui lòng sử dụng mã OTP bên dưới.
+          </p>
+          <div style="background: #f9fafb; border: 2px dashed #ff7c2a; border-radius: 12px; padding: 20px; margin-bottom: 24px; display: inline-block;">
+            <p style="color: #6b7280; font-size: 12px; margin: 0 0 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Mã OTP của bạn</p>
+            <div style="font-size: 36px; font-weight: 900; letter-spacing: 8px; color: #1a1a2e; font-family: monospace;">${otp}</div>
+          </div>
+          <p style="color: #ef4444; font-size: 13px; font-weight: 600; margin-bottom: 16px;">
+            ⏰ Mã có hiệu lực trong <strong>10 phút</strong>
+          </p>
+          <p style="color: #9ca3af; font-size: 12px; line-height: 1.6;">
+            Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này.<br>
+            Mật khẩu của bạn sẽ <strong>không thay đổi</strong> cho đến khi bạn nhập mã OTP.
+          </p>
+        </div>
+        <div style="background: #f9fafb; padding: 16px; text-align: center; border-top: 1px solid #e5e7eb;">
+          <p style="color: #9ca3af; font-size: 11px; margin: 0;">
+            © 2026 VibeBili.vn — Bảo mật SSL 256-bit. Email tự động, vui lòng không reply.
+          </p>
+        </div>
+      </div>
+    `
+  });
+
+  // Thông báo đến admin về request khôi phục mật khẩu
+  if (cleanEmail !== ADMIN_EMAIL) {
+    sendEmail({
+      to: ADMIN_EMAIL,
+      subject: `[VibeBili] Yêu cầu khôi phục mật khẩu từ ${cleanEmail}`,
+      html: `<p>Người dùng <strong>${cleanEmail}</strong> đã yêu cầu khôi phục mật khẩu lúc ${new Date().toLocaleString('vi-VN')}.</p>`
+    }).catch(() => {});
+  }
+
+  if (!emailSent) {
+    return res.status(500).json({
+      success: false,
+      message: 'Không thể gửi email. Vui lòng kiểm tra kết nối hoặc thử lại sau!'
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: `Mã OTP đã được gửi đến ${cleanEmail}. Vui lòng kiểm tra hộp thư (và thư mục spam).`
+  });
+};
+
+// ============================================================
+// 10. XÁC THỰC OTP
+// ============================================================
+const verifyOTP = async (req, res) => {
+  const { email, otp } = req.body;
+  if (!email || !otp) {
+    return res.status(400).json({ success: false, message: 'Thiếu email hoặc mã OTP!' });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const record = otpStore.get(cleanEmail);
+
+  if (!record) {
+    return res.status(400).json({
+      success: false,
+      message: 'Mã OTP không tồn tại hoặc đã hết hạn! Vui lòng gửi lại mã mới.'
+    });
+  }
+
+  // Kiểm tra hết hạn
+  if (Date.now() > record.expiresAt) {
+    otpStore.delete(cleanEmail);
+    return res.status(400).json({
+      success: false,
+      message: 'Mã OTP đã hết hạn (10 phút)! Vui lòng gửi lại mã mới.'
+    });
+  }
+
+  // Chống brute-force: tối đa 5 lần thử
+  record.attempts = (record.attempts || 0) + 1;
+  if (record.attempts > 5) {
+    otpStore.delete(cleanEmail);
+    return res.status(429).json({
+      success: false,
+      message: 'Quá nhiều lần thử sai! Mã OTP đã bị vô hiệu hóa. Vui lòng gửi lại mã mới.'
+    });
+  }
+
+  if (record.otp !== otp.trim()) {
+    return res.status(400).json({
+      success: false,
+      message: `Mã OTP không chính xác! Còn ${5 - record.attempts} lần thử.`
+    });
+  }
+
+  // OTP hợp lệ — đánh dấu để cho phép reset mật khẩu
+  record.verified = true;
+
+  return res.status(200).json({ success: true, message: 'Xác thực OTP thành công!' });
+};
+
+// ============================================================
+// 11. ĐẶT LẠI MẬT KHẨU (sau khi xác thực OTP)
+// ============================================================
+const resetPassword = async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+  if (!email || !otp || !newPassword) {
+    return res.status(400).json({ success: false, message: 'Thiếu thông tin: email, otp, newPassword!' });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const record = otpStore.get(cleanEmail);
+
+  // Kiểm tra OTP đã được xác thực chưa
+  if (!record || !record.verified || record.otp !== otp.trim()) {
+    return res.status(400).json({
+      success: false,
+      message: 'Phiên xác thực không hợp lệ hoặc đã hết hạn! Vui lòng thực hiện lại từ bước Quên mật khẩu.'
+    });
+  }
+  if (Date.now() > record.expiresAt) {
+    otpStore.delete(cleanEmail);
+    return res.status(400).json({ success: false, message: 'Phiên xác thực đã hết hạn! Vui lòng gửi lại mã OTP.' });
+  }
+
+  // Validate mật khẩu mới
+  const passwordStrong = /^(?=.*[a-zA-Z])(?=.*[0-9]).{8,}$/;
+  if (!passwordStrong.test(newPassword)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Mật khẩu mới phải có ít nhất 8 ký tự, gồm cả chữ và số!'
+    });
+  }
+
+  try {
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
+
+    await db.query('UPDATE Users SET password_hash = ? WHERE email = ?', [passwordHash, cleanEmail]);
+    otpStore.delete(cleanEmail);
+
+    // Gửi email thông báo đổi mật khẩu thành công
+    sendEmail({
+      to: cleanEmail,
+      subject: '✅ Mật khẩu VibeBili.vn đã được thay đổi',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto;">
+          <h2 style="color: #1a1a2e;">Mật khẩu đã được thay đổi thành công</h2>
+          <p>Mật khẩu tài khoản <strong>${cleanEmail}</strong> đã được thay đổi lúc <strong>${new Date().toLocaleString('vi-VN')}</strong>.</p>
+          <p>Nếu bạn không thực hiện thay đổi này, vui lòng liên hệ ngay <a href="mailto:oopsbollboll123@gmail.com">oopsbollboll123@gmail.com</a>.</p>
+        </div>
+      `
+    }).catch(() => {});
+
+    return res.status(200).json({
+      success: true,
+      message: 'Mật khẩu đã được đặt lại thành công! Vui lòng đăng nhập lại.'
+    });
+  } catch (err) {
+    // Fallback: cập nhật trong mockData
+    const user = mockData.users.find(u => u.email?.toLowerCase() === cleanEmail);
+    if (user) {
+      user.password = newPassword; // Fallback plaintext (backend chưa kết nối DB)
+    }
+    otpStore.delete(cleanEmail);
+    return res.status(200).json({
+      success: true,
+      message: 'Mật khẩu đã được đặt lại thành công! Vui lòng đăng nhập lại.'
+    });
+  }
+};
+
+// ============================================================
+// 12. THÔNG BÁO ĐĂNG KÝ MỚI ĐẾN ADMIN
+// ============================================================
+const notifyNewUser = async (req, res) => {
+  const { name, email, role, phone } = req.body;
+  if (!email) {
+    return res.status(400).json({ success: false });
+  }
+
+  sendEmail({
+    to: ADMIN_EMAIL,
+    subject: `[VibeBili] Tài khoản mới đăng ký: ${name || email}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 500px;">
+        <h3 style="color: #1a1a2e;">📋 Tài khoản mới vừa đăng ký</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <tr><td style="padding: 8px; color: #6b7280;">Họ tên:</td><td style="padding: 8px; font-weight: 600;">${name || '—'}</td></tr>
+          <tr style="background:#f9fafb"><td style="padding: 8px; color: #6b7280;">Email:</td><td style="padding: 8px; font-weight: 600;">${email}</td></tr>
+          <tr><td style="padding: 8px; color: #6b7280;">SĐT:</td><td style="padding: 8px; font-weight: 600;">${phone || '—'}</td></tr>
+          <tr style="background:#f9fafb"><td style="padding: 8px; color: #6b7280;">Vai trò:</td><td style="padding: 8px; font-weight: 600;">${role || 'customer'}</td></tr>
+          <tr><td style="padding: 8px; color: #6b7280;">Thời gian:</td><td style="padding: 8px; font-weight: 600;">${new Date().toLocaleString('vi-VN')}</td></tr>
+        </table>
+        <p style="color: #9ca3af; font-size: 12px; margin-top: 16px;">Vào Admin Panel để xem chi tiết và quản lý tài khoản.</p>
+      </div>
+    `
+  }).catch(() => {});
+
+  return res.status(200).json({ success: true });
+};
+
 module.exports = {
   register,
   registerSeller,
@@ -536,5 +837,9 @@ module.exports = {
   updateUserRole,
   getPendingSellers,
   refreshToken,
-  logout
+  logout,
+  forgotPassword,
+  verifyOTP,
+  resetPassword,
+  notifyNewUser
 };

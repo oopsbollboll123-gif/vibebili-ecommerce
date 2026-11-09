@@ -59,7 +59,31 @@ export const authAPI = {
     method: 'PUT',
     body: JSON.stringify(data)
   }),
-  getPendingSellers: () => request('/auth/admin/pending-sellers')
+  getPendingSellers: () => request('/auth/admin/pending-sellers'),
+
+  // Quên mật khẩu: Gửi mã OTP đến Gmail của user
+  forgotPassword: (email) => request('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email })
+  }),
+
+  // Xác thực mã OTP
+  verifyOTP: (email, otp) => request('/auth/verify-otp', {
+    method: 'POST',
+    body: JSON.stringify({ email, otp })
+  }),
+
+  // Đặt lại mật khẩu sau khi xác thực OTP
+  resetPassword: (data) => request('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  }),
+
+  // Thông báo đến admin về tài khoản mới đăng ký
+  notifyNewUser: (userData) => request('/auth/admin/notify-new-user', {
+    method: 'POST',
+    body: JSON.stringify(userData)
+  })
 };
 
 // 2. Phân hệ Sản phẩm & Danh mục (Products & Categories)

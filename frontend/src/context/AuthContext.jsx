@@ -11,104 +11,46 @@ export const useAuth = () => {
   return context;
 };
 
-// Danh sách tài khoản hệ thống định sẵn (Hỗ trợ đăng nhập offline/demo không bao giờ bị nghẽn)
-const PRESET_ACCOUNTS = [
-  {
-    id: 99,
-    name: 'Hoàng Trọng Phúc (oopsbollboll123)',
-    email: 'oopsbollboll123@gmail.com',
-    role: 'admin-superadmin',
-    admin_level: 'Super Admin Tối Cao',
-    shop_name: 'VibeBili Flagship Store',
-    phone: '0909123456',
-    address: 'Trụ sở VibeBili.vn, Quận 1, TP. HCM',
-    status: 'active'
-  },
-  {
-    id: 1,
-    name: 'Hoàng Trọng Phúc (Super Admin)',
-    email: 'superadmin@admin.com',
-    role: 'admin-superadmin',
-    admin_level: 'Super Admin Tối Cao',
-    phone: '0909123456',
-    address: 'Trụ sở VibeBili.vn, Quận 1, TP. HCM',
-    status: 'active'
-  },
-  {
-    id: 100,
-    name: 'Admin Quản Trị Hệ Thống (Phúc)',
-    email: 'phuc@admin.com',
-    role: 'admin-superadmin',
-    admin_level: 'Super Admin Tối Cao',
-    phone: '0909123456',
-    address: 'Trụ sở VibeBili.vn, Quận 1, TP. HCM',
-    status: 'active'
-  },
-  {
-    id: 2,
-    name: 'Wig Luxury Sài Gòn',
-    email: 'maitran@shop.com',
-    role: 'seller',
-    shop_name: 'Wig Luxury Sài Gòn',
-    phone: '0912345678',
-    address: '120 Cách Mạng Tháng 8, Quận 3, TP. HCM',
-    status: 'active'
-  },
-  {
-    id: 3,
-    name: 'Y2K Streetwear Boutique',
-    email: 'longle@fashion.vn',
-    role: 'seller',
-    shop_name: 'Y2K Streetwear Boutique',
-    phone: '0988776655',
-    address: '45 Lê Văn Sỹ, Phú Nhuận, TP. HCM',
-    status: 'active'
-  },
-  {
-    id: 4,
-    name: 'Nguyễn Thu Thảo (Khách hàng)',
-    email: 'khachhang@gmail.com',
-    role: 'customer',
-    phone: '0933112233',
-    address: 'Khu đô thị ĐHQG, TP. Thủ Đức, TP. HCM',
-    status: 'active'
-  },
-  {
-    id: 5,
-    name: 'Lê Minh Tuấn (Kiểm Duyệt Viên)',
-    email: 'moderator@admin.com',
-    role: 'admin-moderator',
-    admin_level: 'Admin Kiểm Duyệt',
-    phone: '0918889999',
-    address: 'Bộ phận Kiểm Duyệt Nội Dung & An Toàn Sàn',
-    status: 'active'
-  },
-  {
-    id: 6,
-    name: 'Phạm Thanh Hà (Kế Toán Trưởng)',
-    email: 'financial@admin.com',
-    role: 'admin-financial',
-    admin_level: 'Admin Tài Chính',
-    phone: '0934567890',
-    address: 'Khối Tài Chính & Quỹ Khuyến Mãi Sàn',
-    status: 'active'
-  },
-  {
-    id: 7,
-    name: 'Vũ Bảo Ngọc (Trưởng Nhóm CSKH)',
-    email: 'support@admin.com',
-    role: 'admin-support',
-    admin_level: 'Admin Chăm Sóc Khách Hàng',
-    phone: '0945678901',
-    address: 'Trung Tâm Hỗ Trợ Khách Hàng',
-    status: 'active'
+// ============================================================
+// ADMIN ACCOUNT: CHỈ 1 TÀI KHOẢN DUY NHẤT — DO CHỦ SỞ HỮU QUẢN LÝ
+// KHÔNG hiển thị trong PRESET_ACCOUNTS, không demo, không tự đăng ký
+// ============================================================
+const ADMIN_EMAIL = 'oopsbollboll123@gmail.com';
+const ADMIN_PASSWORD = 'admin@123';
+const ADMIN_PROFILE = {
+  id: 1,
+  name: 'Hoàng Trọng Phúc (Admin)',
+  email: ADMIN_EMAIL,
+  role: 'admin-superadmin',
+  admin_level: 'Super Admin Tối Cao',
+  shop_name: 'VibeBili Flagship Store',
+  phone: '0909123456',
+  address: 'Trụ sở VibeBili.vn, Quận 1, TP. HCM',
+  status: 'active'
+};
+
+// Hàm mã hóa mật khẩu đơn giản (SHA-256-like, phía frontend)
+// Lưu ý: Mật khẩu thực sự vẫn được bcrypt-hash ở backend.
+// Đây chỉ là lớp bảo vệ cơ bản cho localStorage fallback.
+const hashPassword = async (password) => {
+  try {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password + '_vibebili_salt_2026');
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch {
+    // Fallback nếu SubtleCrypto không khả dụng (HTTP)
+    return btoa(password + '_vb_salt');
   }
-];
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     try {
+      // Dọn dẹp dữ liệu cũ từ tên project cũ
       localStorage.removeItem('wigvogue_user');
+      localStorage.removeItem('wigvogue_token');
       const savedUser = localStorage.getItem('vibebili_user');
       return savedUser ? JSON.parse(savedUser) : null;
     } catch {
@@ -117,36 +59,55 @@ export const AuthProvider = ({ children }) => {
   });
 
   const [token, setToken] = useState(() => {
-    localStorage.removeItem('wigvogue_token');
     return localStorage.getItem('vibebili_token') || null;
   });
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authModalMode, setAuthModalMode] = useState('login'); // 'login' | 'register'
+  const [authModalMode, setAuthModalMode] = useState('login');
 
-  // Đăng nhập với cơ chế Fallback chống nghẽn mạng
+  // ── ĐĂNG NHẬP ───────────────────────────────────────────────
   const login = async (email, password) => {
     const cleanEmail = (email || '').trim().toLowerCase();
 
-    // 1. Thử gọi API Backend trước
+    // 1. Kiểm tra Admin cứng (ưu tiên cao nhất, không gọi API)
+    if (cleanEmail === ADMIN_EMAIL) {
+      if (password !== ADMIN_PASSWORD) {
+        return { success: false, message: 'Mật khẩu không chính xác!' };
+      }
+      const fakeToken = 'vibebili_admin_jwt_' + Date.now();
+      setUser(ADMIN_PROFILE);
+      setToken(fakeToken);
+      localStorage.setItem('vibebili_token', fakeToken);
+      localStorage.setItem('vibebili_user', JSON.stringify(ADMIN_PROFILE));
+      setIsAuthModalOpen(false);
+      return { success: true, user: ADMIN_PROFILE };
+    }
+
+    // 2. Thử gọi API Backend
     try {
       const res = await authAPI.login({ email: cleanEmail, password });
       if (res && res.success && res.data) {
-        setUser(res.data.user);
+        const userObj = res.data.user;
+        // Bảo vệ: Backend không được cấp quyền admin cho bất kỳ ai trừ email admin
+        if (userObj.email?.toLowerCase() !== ADMIN_EMAIL && userObj.role?.includes('admin')) {
+          userObj.role = 'customer'; // Hạ cấp bảo mật
+        }
+        setUser(userObj);
         setToken(res.data.token);
         localStorage.setItem('vibebili_token', res.data.token);
-        localStorage.setItem('vibebili_user', JSON.stringify(res.data.user));
+        localStorage.setItem('vibebili_user', JSON.stringify(userObj));
         setIsAuthModalOpen(false);
-        return { success: true, user: res.data.user };
+        return { success: true, user: userObj };
       }
-      if (res && res.message && !res.message.includes('Lỗi') && !res.message.includes('fetch')) {
+      // Backend trả về lỗi rõ ràng (tài khoản sai, bị khóa, v.v.)
+      if (res && res.message && !res.message.includes('fetch') && !res.message.includes('Lỗi kết nối')) {
         return { success: false, message: res.message };
       }
     } catch (err) {
-      console.warn('[Auth]: Máy chủ backend chưa phản hồi, kích hoạt xác thực an toàn nội bộ.');
+      console.warn('[Auth]: Backend chưa phản hồi, dùng xác thực cục bộ.');
     }
 
-    // 2. Xác thực nội bộ: Kiểm tra danh sách người dùng đã đăng ký trên máy
+    // 3. Fallback: Xác thực từ localStorage (người dùng đã đăng ký offline)
     let registeredList = [];
     try {
       const saved = localStorage.getItem('vibebili_registered_users');
@@ -155,11 +116,22 @@ export const AuthProvider = ({ children }) => {
 
     const foundLocal = registeredList.find(u => u.email?.toLowerCase() === cleanEmail);
     if (foundLocal) {
-      if (foundLocal.password && foundLocal.password !== password) {
+      // Xác thực bằng hash mật khẩu
+      const inputHash = await hashPassword(password);
+      if (foundLocal.passwordHash && foundLocal.passwordHash !== inputHash) {
         return { success: false, message: 'Mật khẩu không chính xác! Vui lòng kiểm tra lại.' };
       }
+      // Tương thích ngược với tài khoản cũ lưu plain text (nếu có)
+      if (!foundLocal.passwordHash && foundLocal.password && foundLocal.password !== password) {
+        return { success: false, message: 'Mật khẩu không chính xác! Vui lòng kiểm tra lại.' };
+      }
+
+      // Tuyệt đối không cấp quyền admin cho tài khoản localStorage
       const userObj = { ...foundLocal };
       delete userObj.password;
+      delete userObj.passwordHash;
+      if (userObj.role?.includes('admin')) userObj.role = 'customer';
+
       const fakeToken = 'vibebili_jwt_' + Date.now();
       setUser(userObj);
       setToken(fakeToken);
@@ -169,76 +141,70 @@ export const AuthProvider = ({ children }) => {
       return { success: true, user: userObj };
     }
 
-    // 3. Kiểm tra tài khoản định sẵn (Super Admin, oopsbollboll123, Moderator, Financial, CSKH, Seller, Customer)
-    const preset = PRESET_ACCOUNTS.find(u => u.email.toLowerCase() === cleanEmail);
-    if (preset) {
-      // Xác thực mật khẩu: tài khoản định sẵn chỉ chấp nhận 123456 hoặc password123
-      if (password !== '123456' && password !== 'password123') {
-        return { success: false, message: 'Mật khẩu không chính xác! Vui lòng thử lại (mật khẩu demo: 123456).' };
-      }
-      const fakeToken = 'vibebili_jwt_' + Date.now();
-      setUser(preset);
-      setToken(fakeToken);
-      localStorage.setItem('vibebili_token', fakeToken);
-      localStorage.setItem('vibebili_user', JSON.stringify(preset));
-      setIsAuthModalOpen(false);
-      return { success: true, user: preset };
-    }
-
-    // 4. Nếu tài khoản không tồn tại trên hệ thống: Chặn tuyệt đối và báo lỗi rõ ràng
+    // 4. Tài khoản không tồn tại
     return {
       success: false,
-      message: 'Tài khoản không tồn tại trên hệ thống! Vui lòng kiểm tra lại địa chỉ email hoặc chuyển sang tab Đăng Ký để tạo tài khoản mới.'
+      message: 'Tài khoản không tồn tại! Vui lòng kiểm tra email hoặc nhấn "Đăng ký" để tạo tài khoản mới.'
     };
   };
 
-  // Đăng ký tài khoản Khách hàng
+  // ── ĐĂNG KÝ ─────────────────────────────────────────────────
   const register = async (userData) => {
     const cleanEmail = (userData.email || '').trim().toLowerCase();
 
+    // Chặn đăng ký với email admin
+    if (cleanEmail === ADMIN_EMAIL) {
+      return { success: false, message: 'Email này đã được sử dụng. Vui lòng dùng email khác.' };
+    }
+
+    // 1. Thử gọi API Backend
     try {
-      const res = await authAPI.register({ ...userData, email: cleanEmail });
+      const res = await authAPI.register({ ...userData, email: cleanEmail, role: 'customer' });
       if (res && res.success && res.data) {
-        setUser(res.data.user);
+        const userObj = { ...res.data.user, role: 'customer' }; // Đảm bảo role là customer
+        setUser(userObj);
         setToken(res.data.token);
         localStorage.setItem('vibebili_token', res.data.token);
-        localStorage.setItem('vibebili_user', JSON.stringify(res.data.user));
+        localStorage.setItem('vibebili_user', JSON.stringify(userObj));
         setIsAuthModalOpen(false);
-        return { success: true, user: res.data.user };
+        // Thông báo đến admin về tài khoản mới (qua API)
+        authAPI.notifyNewUser?.(userObj).catch(() => {});
+        return { success: true, user: userObj };
       }
-      if (res && res.message && !res.message.includes('Lỗi') && !res.message.includes('fetch')) {
+      if (res && res.message && !res.message.includes('fetch') && !res.message.includes('Lỗi kết nối')) {
         return { success: false, message: res.message };
       }
     } catch (err) {
-      console.warn('[Register Fallback]: Lưu cục bộ');
+      console.warn('[Register Fallback]: Lưu cục bộ do backend không khả dụng.');
     }
 
-    // Kiểm tra trùng email nội bộ trước khi đăng ký
+    // 2. Kiểm tra trùng email trong localStorage
     let registeredList = [];
     try {
       const saved = localStorage.getItem('vibebili_registered_users');
       if (saved) registeredList = JSON.parse(saved);
     } catch {}
 
-    const isDuplicate = registeredList.some(u => u.email?.toLowerCase() === cleanEmail) ||
-      PRESET_ACCOUNTS.some(u => u.email?.toLowerCase() === cleanEmail);
+    const isDuplicate = registeredList.some(u => u.email?.toLowerCase() === cleanEmail);
     if (isDuplicate) {
-      return { success: false, message: 'Địa chỉ email này đã tồn tại trên sàn! Vui lòng đăng nhập hoặc dùng email khác.' };
+      return { success: false, message: 'Email này đã tồn tại! Vui lòng đăng nhập hoặc dùng email khác.' };
     }
 
-    // Fallback lưu cục bộ
+    // 3. Lưu cục bộ với mật khẩu đã hash
+    const passwordHash = await hashPassword(userData.password);
     const newUser = {
       id: Date.now(),
       name: userData.name || cleanEmail.split('@')[0],
       email: cleanEmail,
-      phone: userData.phone || '0901234567',
+      phone: userData.phone || '',
       address: userData.address || '',
-      role: 'customer',
-      status: 'active'
+      role: 'customer', // Luôn là customer, không bao giờ là admin/seller
+      status: 'active',
+      createdAt: new Date().toISOString()
     };
 
     try {
-      registeredList.push({ ...newUser, password: userData.password });
+      registeredList.push({ ...newUser, passwordHash });
       localStorage.setItem('vibebili_registered_users', JSON.stringify(registeredList));
     } catch {}
 
@@ -251,92 +217,101 @@ export const AuthProvider = ({ children }) => {
     return { success: true, user: newUser };
   };
 
-  // Đăng ký mở Gian Hàng Người Bán mới (Seller Registration)
-  const registerSeller = async (sellerData) => {
-    const cleanEmail = (sellerData.email || '').trim().toLowerCase();
-
-    try {
-      const res = await authAPI.registerSeller({ ...sellerData, email: cleanEmail });
-      if (res && res.success && res.data) {
-        setUser(res.data.user);
-        setToken(res.data.token);
-        localStorage.setItem('vibebili_token', res.data.token);
-        localStorage.setItem('vibebili_user', JSON.stringify(res.data.user));
-        setIsAuthModalOpen(false);
-        return { success: true, user: res.data.user, message: res.message };
-      }
-    } catch (err) {
-      console.warn('[Register Seller Fallback]: Lưu cục bộ');
-    }
-
-    // Kiểm tra trùng email nội bộ trước khi tạo Shop
-    let registeredList = [];
-    try {
-      const saved = localStorage.getItem('vibebili_registered_users');
-      if (saved) registeredList = JSON.parse(saved);
-    } catch {}
-
-    const isDuplicate = registeredList.some(u => u.email?.toLowerCase() === cleanEmail) ||
-      PRESET_ACCOUNTS.some(u => u.email?.toLowerCase() === cleanEmail);
-    if (isDuplicate) {
-      return { success: false, message: 'Địa chỉ email này đã tồn tại trên sàn! Vui lòng sử dụng email khác cho gian hàng.' };
-    }
-
-    const newSeller = {
-      id: Date.now(),
-      name: sellerData.owner_name || sellerData.name || cleanEmail.split('@')[0],
-      email: cleanEmail,
-      phone: sellerData.phone || '0901234567',
-      address: sellerData.warehouse_address || '',
-      shop_name: sellerData.shop_name || 'Gian Hàng VibeBili',
-      business_type: sellerData.business_type || 'Thời Trang & Tóc Giả',
-      role: 'seller',
-      status: 'active'
-    };
-
-    try {
-      registeredList.push({ ...newSeller, password: sellerData.password });
-      localStorage.setItem('vibebili_registered_users', JSON.stringify(registeredList));
-    } catch {}
-
-    const fakeToken = 'vibebili_jwt_' + Date.now();
-    setUser(newSeller);
-    setToken(fakeToken);
-    localStorage.setItem('vibebili_token', fakeToken);
-    localStorage.setItem('vibebili_user', JSON.stringify(newSeller));
-    setIsAuthModalOpen(false);
-    return { success: true, user: newSeller, message: 'Đăng ký gian hàng Người Bán thành công!' };
-  };
-
-  // Nâng cấp tài khoản hiện tại thành Người Bán (Upgrade to Seller)
+  // ── NÂNG CẤP LÊN SELLER (từ profile, sau khi đã đăng nhập) ──
   const upgradeToSeller = async (sellerData) => {
-    try {
-      const res = await authAPI.upgradeToSeller(sellerData);
-      if (res && res.success && res.data) {
-        setUser(res.data.user);
-        setToken(res.data.token);
-        localStorage.setItem('vibebili_token', res.data.token);
-        localStorage.setItem('vibebili_user', JSON.stringify(res.data.user));
-        return { success: true, user: res.data.user, message: res.message };
-      }
-    } catch (err) {
-      console.warn('[Upgrade Seller Fallback]: Cập nhật cục bộ');
+    if (!user) {
+      return { success: false, message: 'Bạn cần đăng nhập trước khi đăng ký Người Bán!' };
     }
 
+    // Admin không cần đăng ký seller
+    if (user.role?.includes('admin')) {
+      return { success: false, message: 'Tài khoản Admin không cần đăng ký Người Bán.' };
+    }
+
+    // 1. Thử gọi API Backend
+    try {
+      const res = await authAPI.upgradeToSeller({ ...sellerData, userId: user.id });
+      if (res && res.success && res.data) {
+        const updatedUser = { ...res.data.user, role: 'seller' };
+        setUser(updatedUser);
+        setToken(res.data.token || token);
+        localStorage.setItem('vibebili_token', res.data.token || token);
+        localStorage.setItem('vibebili_user', JSON.stringify(updatedUser));
+        // Thêm vào pending sellers trong localStorage để admin xem
+        _savePendingSeller(updatedUser, sellerData);
+        return { success: true, user: updatedUser, message: res.message };
+      }
+    } catch (err) {
+      console.warn('[Upgrade Seller Fallback]: Cập nhật cục bộ.');
+    }
+
+    // 2. Fallback cục bộ
     const updatedUser = {
       ...user,
       role: 'seller',
       shop_name: sellerData.shop_name || user?.shop_name || 'VibeBili Shop',
       phone: sellerData.phone || user?.phone,
-      warehouse_address: sellerData.warehouse_address || user?.address
+      warehouse_address: sellerData.warehouse_address || user?.address,
+      business_type: sellerData.business_type,
+      identity_card: sellerData.identity_card,
+      seller_policy_agreed: true,
+      seller_policy_agreed_at: sellerData.policy_agreed_at || new Date().toISOString(),
+      seller_status: 'pending' // Chờ admin duyệt
     };
 
     setUser(updatedUser);
     localStorage.setItem('vibebili_user', JSON.stringify(updatedUser));
-    return { success: true, user: updatedUser, message: 'Chúc mừng! Bạn đã nâng cấp thành công tài khoản Người Bán (Seller)!' };
+
+    // Cập nhật trong registeredList nếu có
+    try {
+      const saved = localStorage.getItem('vibebili_registered_users');
+      if (saved) {
+        const list = JSON.parse(saved);
+        const idx = list.findIndex(u => u.email?.toLowerCase() === user.email?.toLowerCase());
+        if (idx >= 0) {
+          list[idx] = { ...list[idx], ...updatedUser };
+          localStorage.setItem('vibebili_registered_users', JSON.stringify(list));
+        }
+      }
+    } catch {}
+
+    // Lưu vào pending sellers để admin phê duyệt
+    _savePendingSeller(updatedUser, sellerData);
+
+    return { success: true, user: updatedUser, message: 'Đăng ký Người Bán thành công! Đang chờ Admin phê duyệt.' };
   };
 
-  // Đăng xuất
+  // Helper: lưu danh sách seller chờ duyệt vào localStorage
+  const _savePendingSeller = (userObj, sellerData) => {
+    try {
+      const saved = localStorage.getItem('vibebili_pending_sellers');
+      const list = saved ? JSON.parse(saved) : [];
+      const existing = list.findIndex(s => s.email === userObj.email);
+      const entry = {
+        id: userObj.id,
+        name: userObj.name,
+        email: userObj.email,
+        shop_name: sellerData.shop_name || userObj.shop_name,
+        phone: sellerData.phone || userObj.phone,
+        warehouse_address: sellerData.warehouse_address,
+        business_type: sellerData.business_type,
+        identity_card: sellerData.identity_card,
+        description: sellerData.description,
+        policy_agreed: sellerData.policy_agreed,
+        policy_agreed_at: sellerData.policy_agreed_at,
+        date: new Date().toISOString().split('T')[0],
+        status: 'pending'
+      };
+      if (existing >= 0) list[existing] = entry;
+      else list.unshift(entry);
+      localStorage.setItem('vibebili_pending_sellers', JSON.stringify(list));
+
+      // Dispatch event để AdminPanel có thể lắng nghe
+      window.dispatchEvent(new CustomEvent('vibebili_new_seller_request', { detail: entry }));
+    } catch {}
+  };
+
+  // ── ĐĂNG XUẤT ───────────────────────────────────────────────
   const logout = () => {
     setUser(null);
     setToken(null);
@@ -346,24 +321,21 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('wigvogue_user');
   };
 
-  const openLoginModal = () => {
-    setAuthModalMode('login');
-    setIsAuthModalOpen(true);
-  };
-
-  const openRegisterModal = () => {
-    setAuthModalMode('register');
-    setIsAuthModalOpen(true);
-  };
-
+  const openLoginModal = () => { setAuthModalMode('login'); setIsAuthModalOpen(true); };
+  const openRegisterModal = () => { setAuthModalMode('register'); setIsAuthModalOpen(true); };
   const closeAuthModal = () => setIsAuthModalOpen(false);
 
-  const adminRoles = ['admin', 'superadmin', 'admin-superadmin', 'admin-moderator', 'admin-financial', 'admin-support'];
-  const isAnyAdmin = Boolean(user && (adminRoles.includes(user.role) || user.role?.startsWith('admin-')));
-  const isSuperAdmin = Boolean(user && (user.role === 'admin-superadmin' || user.role === 'superadmin' || user.role === 'admin'));
-  const isModerator = Boolean(user && (user.role === 'admin-moderator' || isSuperAdmin));
-  const isFinancial = Boolean(user && (user.role === 'admin-financial' || isSuperAdmin));
-  const isSupport = Boolean(user && (user.role === 'admin-support' || isSuperAdmin));
+  // ── DERIVED STATE ────────────────────────────────────────────
+  // Chỉ email admin cứng mới được quyền admin
+  const isAnyAdmin = Boolean(
+    user &&
+    user.email?.toLowerCase() === ADMIN_EMAIL &&
+    (user.role?.includes('admin') || user.role === 'admin-superadmin' || user.role === 'superadmin')
+  );
+  const isSuperAdmin = isAnyAdmin;
+  const isModerator = isAnyAdmin;
+  const isFinancial = isAnyAdmin;
+  const isSupport = isAnyAdmin;
 
   return (
     <AuthContext.Provider
@@ -386,8 +358,9 @@ export const AuthProvider = ({ children }) => {
         closeAuthModal,
         login,
         register,
-        registerSeller,
         upgradeToSeller,
+        // registerSeller tương thích ngược (alias upgradeToSeller)
+        registerSeller: upgradeToSeller,
         logout,
       }}
     >
