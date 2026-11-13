@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useAuth } from '../context/AuthContext';
@@ -18,9 +18,42 @@ import {
 } from './Icons';
 
 function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavigatePolicy, onBack }) {
-  const { addToCart } = useCart();
+  const { addToCart, openCart } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
   const { user, isAuthenticated } = useAuth();
+
+  // ── Fly-to-cart animation ──────────────────────────────────────────────
+  const addBtnRef = useRef(null);
+  const [flyItems, setFlyItems] = useState([]); // [{id, label, img, fromX, fromY}]
+
+  const triggerFlyToCart = useCallback((product) => {
+    // Tìm nút giỏ hàng trên header qua id
+    const cartBtn = document.getElementById('vibebili-cart-btn');
+    const addBtn  = addBtnRef.current;
+    if (!cartBtn || !addBtn) return;
+
+    const fromRect = addBtn.getBoundingClientRect();
+    const toRect   = cartBtn.getBoundingClientRect();
+
+    const fromX = fromRect.left + fromRect.width / 2;
+    const fromY = fromRect.top  + fromRect.height / 2;
+    const toX   = toRect.left  + toRect.width  / 2;
+    const toY   = toRect.top   + toRect.height / 2;
+
+    const flyId = Date.now();
+    setFlyItems(prev => [...prev, {
+      id: flyId,
+      label: (product?.name || 'Sản phẩm').slice(0, 22),
+      img: product?.main_image || product?.image || null,
+      fromX, fromY, toX, toY
+    }]);
+
+    // Dọn sau khi animation kết thúc (900ms)
+    setTimeout(() => {
+      setFlyItems(prev => prev.filter(f => f.id !== flyId));
+    }, 950);
+  }, []);
+  // ──────────────────────────────────────────────────────────────────────
 
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -304,11 +337,18 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
       (v.color === selectedColor || !v.color) && (v.size === selectedSize || !v.size)
     ) || activeProduct.variants?.[0] || null;
 
-    addToCart(activeProduct, selectedVariant, quantity, {
-      color: selectedColor || 'Mặc định',
-      size: selectedSize || activeProduct.sizes?.[0] || 'Size M',
-      length: selectedLength || ''
-    });
+    try {
+      addToCart(activeProduct, selectedVariant, quantity, {
+        color: selectedColor || 'Mặc định',
+        size: selectedSize || activeProduct.sizes?.[0] || 'Size M',
+        length: selectedLength || ''
+      });
+      triggerFlyToCart(activeProduct);
+      // Mở CartDrawer sau khi animation bay xong (~700ms)
+      setTimeout(() => openCart(), 700);
+    } catch (err) {
+      console.error('addToCart error:', err);
+    }
   };
 
   // Mua ngay
@@ -785,6 +825,7 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
           {/* NÚT HÀNH ĐỘNG: Thêm Giỏ Hàng & Mua Ngay */}
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <button
+              ref={addBtnRef}
               onClick={handleAddToCart}
               className="flex-1 min-h-[48px] bg-white border-2 border-black text-black font-extrabold py-3.5 px-6 rounded-full hover:bg-gray-50 transition uppercase tracking-wider text-xs shadow-sm flex items-center justify-center space-x-2"
             >
@@ -1169,6 +1210,11 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
         </div>
       </div>
 
+      {/* ── Fly-to-cart animation overlay ── */}
+      {flyItems.map(fly => (
+        <FlyLabel key={fly.id} fly={fly} />
+      ))}
+
       {/* Sticky Bottom Bar trên Điện Thoại (Mobile Quick Buy Bar) */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200 px-4 py-2.5 shadow-2xl flex items-center justify-between gap-3">
         <div className="min-w-0">
@@ -1198,3 +1244,67 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
 }
 
 export default ProductDetail;
+
+/* ─────────────────────────────────────────────────────────
+   FlyLabel — Label sản phẩm bay lên nút giỏ hàng
+   Dùng CSS custom animation inject thẳng vào <style>
+───────────────────────────────────────────────────────── */
+function FlyLabel({ fly }) {
+  const { fromX, fromY, toX, toY, label, img } = fly;
+
+  // Delta để CSS translate đến đích
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+
+  const style = {
+    position: 'fixed',
+    left: fromX,
+    top: fromY,
+    transform: 'translate(-50%, -50%)',
+    zIndex: 9999,
+    pointerEvents: 'none',
+    animation: `vibebili-fly 0.85s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards`,
+    '--dx': `${dx}px`,
+    '--dy': `${dy}px`,
+  };
+
+  return (
+    <>
+      <style>{`
+        @keyframes vibebili-fly {
+          0%   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+          60%  { opacity: 0.9; transform: translate(calc(-50% + var(--dx) * 0.6), calc(-50% + var(--dy) * 0.6)) scale(0.75); }
+          100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.3); }
+        }
+      `}</style>
+      <div style={style}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          background: '#000',
+          color: '#fff',
+          borderRadius: '999px',
+          padding: '5px 10px 5px 5px',
+          fontSize: '11px',
+          fontWeight: '800',
+          whiteSpace: 'nowrap',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+          maxWidth: '200px',
+        }}>
+          {img ? (
+            <img
+              src={img}
+              alt=""
+              style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+              onError={e => { e.currentTarget.style.display = 'none'; }}
+            />
+          ) : (
+            <span style={{ fontSize: 14 }}>🛍️</span>
+          )}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+        </div>
+      </div>
+    </>
+  );
+}

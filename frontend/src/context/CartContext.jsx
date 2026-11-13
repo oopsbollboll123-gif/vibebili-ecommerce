@@ -151,8 +151,8 @@ export const CartProvider = ({ children }) => {
       }
     });
 
-    showToast(`Đã thêm "${(product.name || 'Sản phẩm').slice(0, 24)}..." vào giỏ hàng!`);
-    setIsCartOpen(true);
+    showToast(`✓ Đã thêm "${(product.name || 'Sản phẩm').slice(0, 28)}..." vào giỏ hàng!`);
+    // Không tự mở CartDrawer ở đây để tránh trang trắng — để component gọi tự xử lý
   };
 
   const updateQuantity = (cartItemId, newQty) => {

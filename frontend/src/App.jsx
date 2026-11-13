@@ -380,6 +380,7 @@ function MainApp() {
 
             {/* Cart */}
             <button
+              id="vibebili-cart-btn"
               onClick={openCart}
               aria-label="Mở giỏ hàng"
               className="relative bg-vibe-ink text-white h-10 px-4 md:px-5 rounded-full hover:bg-vibe-800 transition-colors flex items-center gap-2 shadow-btn"
