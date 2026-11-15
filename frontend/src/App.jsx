@@ -194,7 +194,7 @@ function MainApp() {
   };
 
   return (
-    <div className="min-h-screen bg-vibe-surface text-vibe-ink flex flex-col font-sans antialiased">
+    <div className="min-h-screen bg-vibe-surface text-vibe-ink flex flex-col font-sans antialiased overflow-x-hidden">
 
       {/* 1. Top Bar — Minimal announcement strip */}
       <div className="bg-vibe-950 text-white text-2xs py-2 px-4">
@@ -213,42 +213,42 @@ function MainApp() {
         </div>
       </div>
 
-      {/* 2. Header — Sticky, clean, luxury */}
+      {/* 2. Header — Sticky, clean, luxury, fully responsive & flexible */}
       <header className="sticky top-0 z-40 glass border-b border-vibe-border shadow-sm transition-all">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 md:h-[72px] flex items-center justify-between gap-3 md:gap-5">
+        <div className="max-w-7xl mx-auto px-2.5 sm:px-4 md:px-6 h-14 sm:h-16 md:h-[72px] flex items-center justify-between gap-1.5 sm:gap-3 md:gap-4">
 
           {/* Logo */}
           <div
             onClick={() => { setCurrentView('home'); setSelectedCategory('all'); setSearchQuery(''); }}
-            className="flex flex-col cursor-pointer select-none flex-shrink-0 group"
+            className="flex flex-col cursor-pointer select-none flex-shrink-0 group pr-1"
           >
-            <div className="text-2xl md:text-[1.75rem] font-black tracking-tight uppercase leading-none text-vibe-ink">
+            <div className="text-xl sm:text-2xl md:text-[1.75rem] font-black tracking-tight uppercase leading-none text-vibe-ink">
               VIBE<span className="text-vibe-accent group-hover:text-vibe-accent-hover transition-colors">BILI</span>
-              <span className="text-base font-bold text-vibe-400 lowercase">.vn</span>
+              <span className="text-sm sm:text-base font-bold text-vibe-400 lowercase">.vn</span>
             </div>
             <span className="text-2xs font-medium text-vibe-subtle tracking-wide hidden sm:block mt-0.5 italic">
               Biến hóa mỗi ngày, trọn vẹn phong cách
             </span>
           </div>
 
-          {/* Search */}
-          <div ref={searchContainerRef} className="flex-1 max-w-lg mx-2 md:mx-4 relative">
+          {/* Search — Flexible & Adaptive */}
+          <div ref={searchContainerRef} className="flex-1 min-w-0 max-w-lg mx-1 sm:mx-2 md:mx-4 relative">
             <form onSubmit={handleSearch} className="relative flex items-center">
               <input
                 type="text"
-                placeholder="Tìm tóc giả, outfit, combo Y2K..."
+                placeholder="Tìm tóc giả, outfit, combo..."
                 value={searchQuery}
                 onFocus={() => setIsSearchFocused(true)}
                 onChange={(e) => { setSearchQuery(e.target.value); setIsSearchFocused(true); }}
-                className="w-full bg-vibe-50 border border-vibe-border rounded-full py-2.5 pl-4 pr-20 text-sm focus:outline-none focus:border-vibe-ink focus:bg-white transition-all placeholder:text-vibe-subtle"
+                className="w-full bg-vibe-50 border border-vibe-border rounded-full py-1.5 sm:py-2 md:py-2.5 pl-3 sm:pl-4 pr-9 sm:pr-14 md:pr-16 text-xs sm:text-sm focus:outline-none focus:border-vibe-ink focus:bg-white transition-all placeholder:text-vibe-subtle"
               />
               <button
                 type="submit"
                 aria-label="Tìm kiếm"
-                className="absolute right-1.5 bg-vibe-ink text-white px-4 py-2 rounded-full text-xs font-semibold hover:bg-vibe-800 transition flex items-center gap-1.5"
+                className="absolute right-1 bg-vibe-ink text-white px-2 sm:px-3 md:px-3.5 py-1.5 sm:py-2 rounded-full text-xs font-semibold hover:bg-vibe-800 transition flex items-center gap-1"
               >
                 <SearchIcon className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Tìm</span>
+                <span className="hidden md:inline text-xs">Tìm</span>
               </button>
             </form>
 
@@ -291,12 +291,12 @@ function MainApp() {
             )}
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
-            {/* Wishlist - Ẩn trên mobile vì đã có Bottom Bar */}
+          {/* Actions Container — Fully Flexible */}
+          <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 flex-shrink-0">
+            {/* Wishlist — Ẩn trên mobile/tablet nhỏ, hiện icon từ md, hiện text từ xl */}
             <button
               onClick={() => { setCurrentView('wishlist'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              className={`relative hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold transition-all border ${
+              className={`relative hidden md:inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full text-xs font-semibold transition-all border ${
                 currentView === 'wishlist'
                   ? 'bg-red-50 text-red-600 border-red-200'
                   : 'bg-transparent text-vibe-700 border-vibe-border hover:border-vibe-400 hover:bg-white'
@@ -304,16 +304,16 @@ function MainApp() {
               title="Danh sách yêu thích"
             >
               <span className="text-sm leading-none">❤️</span>
-              <span className="hidden md:inline">Yêu thích</span>
+              <span className="hidden xl:inline">Yêu thích</span>
               {totalWishlist > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-2xs font-black w-4 h-4 rounded-full flex items-center justify-center">{totalWishlist}</span>
               )}
             </button>
 
-            {/* Orders - Ẩn trên mobile vì đã có Bottom Bar */}
+            {/* Orders — Ẩn trên mobile vì đã có Bottom Bar, hiện icon từ md, text từ xl */}
             <button
               onClick={() => { setCurrentView('orders'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold transition-all border ${
+              className={`hidden md:inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full text-xs font-semibold transition-all border ${
                 currentView === 'orders'
                   ? 'bg-vibe-ink text-white border-vibe-ink'
                   : 'bg-transparent text-vibe-700 border-vibe-border hover:border-vibe-400 hover:bg-white'
@@ -321,40 +321,53 @@ function MainApp() {
               title="Đơn mua của tôi"
             >
               <span className="text-sm leading-none">🧾</span>
-              <span className="hidden md:inline">Đơn mua</span>
+              <span className="hidden xl:inline">Đơn mua</span>
             </button>
 
-            {/* Admin Portal — chỉ hiện khi là admin */}
+            {/* Admin Portal — Icon gọn gàng trên mobile/tablet, text hiện từ lg */}
             {isAdmin && (
               <button
                 onClick={() => { setCurrentView('admin'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                className={`inline-flex items-center gap-1 px-2.5 sm:px-3 py-2 rounded-full text-xs font-semibold transition-all border ${
+                className={`inline-flex items-center gap-1 px-2 sm:px-2.5 md:px-3 py-1.5 sm:py-2 rounded-full text-xs font-semibold transition-all border flex-shrink-0 ${
                   currentView === 'admin'
                     ? 'bg-purple-700 text-white border-purple-700'
                     : 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
                 }`}
                 title="Quản Trị Hệ Thống"
               >
-                <span>🛡️</span>
-                <span className="hidden md:inline">Admin</span>
+                <span className="text-sm leading-none">🛡️</span>
+                <span className="hidden lg:inline">Admin</span>
               </button>
             )}
 
-            {/* Account */}
+            {/* Account / User */}
             {isAuthenticated ? (
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+                {/* Desktop: Hiện tên + role badge đầy đủ khi >= lg */}
                 <div
                   onClick={() => { setCurrentView('login'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                  className="hidden sm:flex flex-col items-end cursor-pointer group"
+                  className="hidden lg:flex flex-col items-end cursor-pointer group"
                   title="Tài khoản của tôi"
                 >
-                  <span className="text-xs font-semibold text-vibe-ink group-hover:text-vibe-accent transition-colors truncate max-w-[96px]">{user.name}</span>
+                  <span className="text-xs font-semibold text-vibe-ink group-hover:text-vibe-accent transition-colors truncate max-w-[110px]">{user.name}</span>
                   <span className={`text-2xs font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${
                     isAdmin ? 'bg-purple-100 text-purple-700' :
                     isSeller ? 'bg-orange-100 text-orange-700' :
                     'bg-vibe-100 text-vibe-600'
                   }`}>{user.role}</span>
                 </div>
+
+                {/* Mobile & Tablet (< lg): Avatar tròn compact, bấm vào xem thông tin tài khoản */}
+                <button
+                  onClick={() => { setCurrentView('login'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  className="lg:hidden flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-vibe-100 border border-vibe-border text-vibe-ink hover:border-vibe-ink transition-colors relative flex-shrink-0"
+                  title={`Tài khoản: ${user.name} (${user.role})`}
+                >
+                  <span className="text-xs font-bold uppercase">{user.name ? user.name.charAt(0) : '👤'}</span>
+                  {isAdmin && <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-purple-600 rounded-full border border-white" />}
+                </button>
+
+                {/* Nút Thoát — Chỉ hiện trên màn hình lớn >= lg, trên mobile đã có trong trang Tài khoản */}
                 <button
                   onClick={() => {
                     logout();
@@ -362,7 +375,7 @@ function MainApp() {
                     setTimeout(() => setLogoutToast(''), 3500);
                     setCurrentView('home');
                   }}
-                  className="text-vibe-muted hover:text-red-600 text-xs font-medium px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                  className="hidden lg:inline-flex text-vibe-muted hover:text-red-600 text-xs font-medium px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors"
                   title="Đăng xuất"
                 >
                   Thoát
@@ -371,32 +384,32 @@ function MainApp() {
             ) : (
               <button
                 onClick={() => { setAuthInitialMode('login'); setCurrentView('login'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                className="inline-flex items-center gap-1.5 border border-vibe-border hover:border-vibe-ink px-3.5 py-2 rounded-full text-xs font-semibold transition-all text-vibe-ink hover:bg-vibe-50"
+                className="inline-flex items-center gap-1 border border-vibe-border hover:border-vibe-ink px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-full text-xs font-semibold transition-all text-vibe-ink hover:bg-vibe-50 flex-shrink-0"
               >
-                <UserIcon className="w-4 h-4" />
+                <UserIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 <span className="hidden sm:inline">Đăng Nhập</span>
               </button>
             )}
 
-            {/* Cart */}
+            {/* Cart Button — Luôn luôn hiển thị đầy đủ, không bao giờ bị cắt xén */}
             <button
               id="vibebili-cart-btn"
               onClick={openCart}
               aria-label="Mở giỏ hàng"
-              className="relative bg-vibe-ink text-white h-10 px-4 md:px-5 rounded-full hover:bg-vibe-800 transition-colors flex items-center gap-2 shadow-btn"
+              className="relative bg-vibe-ink text-white h-8 sm:h-9 md:h-10 px-2.5 sm:px-3.5 md:px-5 rounded-full hover:bg-vibe-800 transition-colors flex items-center gap-1.5 sm:gap-2 shadow-btn flex-shrink-0"
             >
-              <ShoppingBagIcon className="w-4 h-4" />
-              <span className="hidden sm:inline text-sm font-semibold">Giỏ</span>
-              <span className="bg-vibe-accent text-white text-2xs font-black px-1.5 py-0.5 rounded-full min-w-[20px] text-center leading-none">
+              <ShoppingBagIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline text-xs sm:text-sm font-semibold">Giỏ</span>
+              <span className="bg-vibe-accent text-white text-2xs font-black px-1.5 py-0.5 rounded-full min-w-[18px] sm:min-w-[20px] text-center leading-none">
                 {totalCount}
               </span>
             </button>
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="border-t border-vibe-100 bg-white/90">
-          <ul className="max-w-7xl mx-auto px-4 sm:px-6 flex gap-0 overflow-x-auto no-scrollbar py-0">
+        {/* Navigation — Horizontal Smooth Touch Scrolling */}
+        <nav className="border-t border-vibe-100 bg-white/95 backdrop-blur-sm">
+          <ul className="max-w-7xl mx-auto px-2.5 sm:px-6 flex gap-0 overflow-x-auto no-scrollbar py-0 touch-pan-x overscroll-x-contain">
             {[
               { label: 'Trang Chủ', action: () => { setCurrentView('home'); setSelectedCategory('all'); setSearchQuery(''); }, active: currentView === 'home' && selectedCategory === 'all' },
               { label: 'Tóc Giả Cao Cấp', action: () => { setCurrentView('home'); setSelectedCategory('Tóc Giả Cao Cấp'); }, active: currentView === 'home' && selectedCategory === 'Tóc Giả Cao Cấp' },
@@ -409,7 +422,7 @@ function MainApp() {
               <li
                 key={item.label}
                 onClick={item.action}
-                className={`relative cursor-pointer whitespace-nowrap text-xs font-semibold tracking-wide py-3 px-3.5 border-b-2 transition-all flex items-center gap-1.5 ${
+                className={`relative cursor-pointer whitespace-nowrap text-xs font-semibold tracking-wide py-2.5 sm:py-3 px-2.5 sm:px-3.5 border-b-2 transition-all flex items-center gap-1.5 flex-shrink-0 select-none ${
                   item.active
                     ? 'text-vibe-ink border-vibe-ink'
                     : 'text-vibe-500 border-transparent hover:text-vibe-ink hover:border-vibe-300'
