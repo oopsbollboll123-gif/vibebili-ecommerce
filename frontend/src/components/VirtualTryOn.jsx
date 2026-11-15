@@ -121,6 +121,26 @@ const FALLBACK_WIGS = [
     capSize: "Size M (55 - 57cm)",
     price: 320000,
     overlayImage: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80"
+  },
+  {
+    id: "wig-default-5",
+    name: "Tóc Kẹp Phím Nối Dài 60cm — Vàng Tây Sang Trọng (100% Tóc Thật)",
+    fiber: "100% Virgin Human Hair (Tóc thật 100%)",
+    hairLength: "60cm",
+    color: "Vàng Tây Sang Trọng",
+    capSize: "Combo 3 Phím Kẹp",
+    price: 450000,
+    overlayImage: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80"
+  },
+  {
+    id: "wig-default-6",
+    name: "Tóc Kẹp Phím Nối Dài 60cm — Nâu Sô-cô-la Bồng Bềnh",
+    fiber: "Korean Synthetic Silk (Chịu nhiệt 180°C)",
+    hairLength: "60cm",
+    color: "Nâu Sô-cô-la",
+    capSize: "Combo 3 Phím Kẹp",
+    price: 380000,
+    overlayImage: "https://images.unsplash.com/photo-1519699047748-de8e457a634e?auto=format&fit=crop&w=800&q=80"
   }
 ];
 
@@ -307,6 +327,8 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
       personImgSrc: sourceImage,
       wigImgSrc: wigSrc,
       clothingImgSrc: clothSrc,
+      wigData: selectedWig,
+      clothingData: selectedClothing,
       wigTransform: currentWigTransform || wigTransform,
       clothingTransform: currentClothingTransform || clothingTransform,
       showBranding: true
@@ -1013,6 +1035,38 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
                             className="w-full accent-orange-600"
                           />
                         </div>
+
+                        {/* Phím bấm điều chỉnh nhanh 1 chạm */}
+                        <div className="pt-2 border-t grid grid-cols-4 gap-1.5 text-[10px] font-bold text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateTransform('wig', 'y', wigTransform.y - 8)}
+                            className="bg-gray-100 hover:bg-gray-200 py-1 rounded-lg border border-gray-200"
+                          >
+                            ⬆ Nâng lên
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateTransform('wig', 'y', wigTransform.y + 8)}
+                            className="bg-gray-100 hover:bg-gray-200 py-1 rounded-lg border border-gray-200"
+                          >
+                            ⬇ Hạ xuống
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateTransform('wig', 'scale', Math.min(1.35, wigTransform.scale + 0.05))}
+                            className="bg-gray-100 hover:bg-gray-200 py-1 rounded-lg border border-gray-200"
+                          >
+                            ➕ Phóng to
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateTransform('wig', 'scale', Math.max(0.7, wigTransform.scale - 0.05))}
+                            className="bg-gray-100 hover:bg-gray-200 py-1 rounded-lg border border-gray-200"
+                          >
+                            ➖ Thu nhỏ
+                          </button>
+                        </div>
                       </div>
                     )}
 
@@ -1065,6 +1119,38 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
                             onChange={(e) => handleUpdateTransform('clothing', 'scale', e.target.value)}
                             className="w-full accent-orange-600"
                           />
+                        </div>
+
+                        {/* Phím bấm điều chỉnh nhanh 1 chạm */}
+                        <div className="pt-2 border-t grid grid-cols-4 gap-1.5 text-[10px] font-bold text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateTransform('clothing', 'y', clothingTransform.y - 8)}
+                            className="bg-gray-100 hover:bg-gray-200 py-1 rounded-lg border border-gray-200"
+                          >
+                            ⬆ Nâng lên
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateTransform('clothing', 'y', clothingTransform.y + 8)}
+                            className="bg-gray-100 hover:bg-gray-200 py-1 rounded-lg border border-gray-200"
+                          >
+                            ⬇ Hạ xuống
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateTransform('clothing', 'scale', Math.min(1.35, clothingTransform.scale + 0.05))}
+                            className="bg-gray-100 hover:bg-gray-200 py-1 rounded-lg border border-gray-200"
+                          >
+                            ➕ Phóng to
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateTransform('clothing', 'scale', Math.max(0.7, clothingTransform.scale - 0.05))}
+                            className="bg-gray-100 hover:bg-gray-200 py-1 rounded-lg border border-gray-200"
+                          >
+                            ➖ Thu nhỏ
+                          </button>
                         </div>
                       </div>
                     )}
