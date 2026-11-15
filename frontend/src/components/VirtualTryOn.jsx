@@ -174,7 +174,7 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
   // Lựa chọn hiện tại
   const [selectedAvatar, setSelectedAvatar] = useState(FALLBACK_AVATARS[0]);
   const [customAvatarImage, setCustomAvatarImage] = useState(null);
-  const [selectedWig, setSelectedWig] = useState(null);
+  const [selectedWig, setSelectedWig] = useState(NATURAL_HAIR_OPTION);
   const [selectedClothing, setSelectedClothing] = useState(null);
 
   // Số đo cơ thể (Smart Body Measurements)
@@ -284,8 +284,8 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
         const foundWig = finalWigList.find(w => String(w.id) === String(preselectedWigId));
         setSelectedWig(foundWig || finalWigList[1] || finalWigList[0]);
       } else {
-        // Mặc định chọn mẫu tóc xoăn sóng Hàn Quốc (index 1)
-        setSelectedWig(finalWigList[1] || finalWigList[0]);
+        // Mặc định giữ nguyên mái tóc thật tự nhiên của khách hàng
+        setSelectedWig(NATURAL_HAIR_OPTION);
       }
 
       if (preselectedClothingId) {
