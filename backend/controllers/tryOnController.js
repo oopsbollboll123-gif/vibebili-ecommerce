@@ -354,7 +354,33 @@ Yêu cầu trả về JSON có định dạng:
   }
 };
 
+// 3. Proxy nạp ảnh an toàn tránh lỗi CORS khi render Canvas phía Frontend
+const proxyImage = async (req, res) => {
+  try {
+    const imageUrl = req.query.url;
+    if (!imageUrl) {
+      return res.status(400).send('Missing url parameter');
+    }
+
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      return res.status(response.status).send('Failed to fetch image');
+    }
+
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    const buffer = await response.arrayBuffer();
+
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'public, max-age=86400');
+    return res.send(Buffer.from(buffer));
+  } catch (err) {
+    return res.status(500).send('Proxy error: ' + err.message);
+  }
+};
+
 module.exports = {
   getPresets,
-  generateTryOn
+  generateTryOn,
+  proxyImage
 };

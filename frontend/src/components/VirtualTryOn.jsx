@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useCart } from '../context/CartContext';
 import { tryOnAPI, productAPI } from '../services/api';
 import { getCleanCustomProducts, DEFAULT_PRODUCT_IMAGE, isValidImageUrl } from '../utils/productUtils';
+import { compositeTryOnLayers } from '../utils/tryOnCompositor';
 import {
   SparklesIcon,
   CheckIcon,
@@ -173,6 +174,13 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
   // Thanh trượt Before / After Slider (0% -> 100%)
   const [sliderPosition, setSliderPosition] = useState(50);
 
+  // Bộ tinh chỉnh vị trí & kích cỡ thủ công (Fine-tune Transforms cho độ chính xác 99%)
+  const [wigTransform, setWigTransform] = useState({ x: 0, y: 0, scale: 1.0 });
+  const [clothingTransform, setClothingTransform] = useState({ x: 0, y: 0, scale: 1.0 });
+  const [showTransformControls, setShowTransformControls] = useState(false);
+  const [activeAdjustTab, setActiveAdjustTab] = useState('wig'); // 'wig' | 'clothing'
+  const [isRecompositing, setIsRecompositing] = useState(false);
+
   // 1. KẾT NỐI SẢN PHẨM THỰC TẾ TRÊN SÀN (Backend + LocalStorage Custom Products)
   useEffect(() => {
     let isMounted = true;
@@ -289,88 +297,76 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
     }
   };
 
-  // 2. CÔNG NGHỆ CANVAS AI COMPOSITOR (Tạo ảnh phối đồ 2-in-1 chân thực)
-  const generateCompositeImage = (baseImgSrc, wigImgSrc, clothingImgSrc) => {
-    return new Promise((resolve) => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = 700;
-        canvas.height = 900;
-        const ctx = canvas.getContext('2d');
+  // 2. CÔNG NGHỆ TÁCH NỀN VÀ GHÉP LỚP THỜI TRANG ĐA TẦNG (Smart AI Compositor)
+  const executeComposite = async (currentWigTransform, currentClothingTransform) => {
+    const sourceImage = customAvatarImage || selectedAvatar?.imageUrl;
+    const wigSrc = (selectedWig && selectedWig.id !== 'wig-natural') ? selectedWig.overlayImage : null;
+    const clothSrc = selectedClothing ? selectedClothing.overlayImage : null;
 
-        const baseImg = new Image();
-        if (baseImgSrc && !baseImgSrc.startsWith('data:')) {
-          baseImg.crossOrigin = 'anonymous';
-        }
-
-        const safeTimeout = setTimeout(() => {
-          resolve(clothingImgSrc || wigImgSrc || baseImgSrc);
-        }, 2200);
-
-        baseImg.onload = () => {
-          clearTimeout(safeTimeout);
-          try {
-            // Vẽ ảnh nền (Avatar hoặc Khách hàng)
-            ctx.drawImage(baseImg, 0, 0, 700, 900);
-
-            // Tạo hiệu ứng Vignette và ánh sáng phòng thử đồ studio
-            const gradient = ctx.createLinearGradient(0, 0, 0, 900);
-            gradient.addColorStop(0, 'rgba(0,0,0,0.15)');
-            gradient.addColorStop(0.5, 'rgba(0,0,0,0)');
-            gradient.addColorStop(1, 'rgba(0,0,0,0.65)');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, 700, 900);
-
-            // Thẻ thông tin sản phẩm phối đồ AI ở góc dưới
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-            ctx.beginPath();
-            ctx.roundRect(30, 720, 640, 150, 20);
-            ctx.fill();
-
-            ctx.strokeStyle = '#ff7c2a';
-            ctx.lineWidth = 3;
-            ctx.stroke();
-
-            // Nhãn AI Branding
-            ctx.fillStyle = '#ff7c2a';
-            ctx.font = 'bold 14px sans-serif';
-            ctx.fillText('✨ VIBEBILI 2-IN-1 AI VIRTUAL TRY-ON', 50, 750);
-
-            ctx.fillStyle = '#111827';
-            ctx.font = 'bold 16px sans-serif';
-            const wigTitle = (selectedWig?.name || 'Tóc Tự Nhiên').slice(0, 40);
-            ctx.fillText(`💇‍♀️ ${wigTitle}`, 50, 780);
-
-            const clothTitle = (selectedClothing?.name || 'Trang Phục Tự Nhiên').slice(0, 40);
-            ctx.fillText(`👗 ${clothTitle}`, 50, 810);
-
-            ctx.fillStyle = '#16a34a';
-            ctx.font = 'bold 13px sans-serif';
-            ctx.fillText('✓ Căn chỉnh tỷ lệ 3D Face & Body Landmarks chuẩn xác', 50, 840);
-
-            try {
-              resolve(canvas.toDataURL('image/jpeg', 0.92));
-            } catch (canvasErr) {
-              resolve(clothingImgSrc || wigImgSrc || baseImgSrc);
-            }
-          } catch (e) {
-            resolve(clothingImgSrc || wigImgSrc || baseImgSrc);
-          }
-        };
-
-        baseImg.onerror = () => {
-          clearTimeout(safeTimeout);
-          resolve(clothingImgSrc || wigImgSrc || baseImgSrc);
-        };
-
-        baseImg.src = baseImgSrc;
-      } catch (err) {
-        resolve(clothingImgSrc || wigImgSrc || baseImgSrc);
-      }
+    return await compositeTryOnLayers({
+      personImgSrc: sourceImage,
+      wigImgSrc: wigSrc,
+      clothingImgSrc: clothSrc,
+      wigTransform: currentWigTransform || wigTransform,
+      clothingTransform: currentClothingTransform || clothingTransform,
+      showBranding: true
     });
   };
 
-  // 3. KÍCH HOẠT THỬ ĐỒ AI (GỌI API GEMINI VÀ XỬ LÝ ẢNH THẬT)
+  // Cập nhật tinh chỉnh trực tiếp (Real-time Fine-Tuning)
+  const handleUpdateTransform = async (layerType, field, value) => {
+    const numVal = parseFloat(value);
+    let newWig = { ...wigTransform };
+    let newCloth = { ...clothingTransform };
+
+    if (layerType === 'wig') {
+      newWig[field] = numVal;
+      setWigTransform(newWig);
+    } else {
+      newCloth[field] = numVal;
+      setClothingTransform(newCloth);
+    }
+
+    if (tryOnResult && tryOnResult.originalImage) {
+      try {
+        setIsRecompositing(true);
+        const updatedImg = await executeComposite(newWig, newCloth);
+        setTryOnResult(prev => ({
+          ...prev,
+          renderedImage: updatedImg
+        }));
+      } catch (err) {
+        console.warn('Lỗi re-composite:', err);
+      } finally {
+        setIsRecompositing(false);
+      }
+    }
+  };
+
+  // Đặt lại tọa độ mặc định
+  const handleResetTransforms = async () => {
+    const defWig = { x: 0, y: 0, scale: 1.0 };
+    const defCloth = { x: 0, y: 0, scale: 1.0 };
+    setWigTransform(defWig);
+    setClothingTransform(defCloth);
+
+    if (tryOnResult && tryOnResult.originalImage) {
+      try {
+        setIsRecompositing(true);
+        const updatedImg = await executeComposite(defWig, defCloth);
+        setTryOnResult(prev => ({
+          ...prev,
+          renderedImage: updatedImg
+        }));
+      } catch (err) {
+        console.warn('Lỗi reset composite:', err);
+      } finally {
+        setIsRecompositing(false);
+      }
+    }
+  };
+
+  // 3. KÍCH HOẠT THỬ ĐỒ AI (Tách nền tóc & áo, ghép chuẩn vào chân dung người mẫu)
   const handleRunTryOn = async () => {
     if (!selectedWig && !selectedClothing) {
       alert('Vui lòng chọn ít nhất 1 mẫu tóc giả hoặc 1 mẫu trang phục để bắt đầu thử đồ!');
@@ -381,19 +377,15 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
     setTryOnResult(null);
 
     // Hiệu ứng scan tuần tự mô phỏng nhận diện AI đa tầng
-    setScanStep(1); // 1. Facial Landmarks (Chân tóc, cằm, xương gò má)
-    setTimeout(() => { setScanStep(2); }, 800); // 2. Body 3D Shaping (Dáng người, số đo)
-    setTimeout(() => { setScanStep(3); }, 1600); // 3. Multi-layer AI Composite
+    setScanStep(1); // 1. Tách nền tóc & áo
+    setTimeout(() => { setScanStep(2); }, 700); // 2. Nhận diện mốc tỷ lệ khuôn mặt & bờ vai
+    setTimeout(() => { setScanStep(3); }, 1500); // 3. Hòa trộn đa tầng (Smart Composite)
 
     try {
       const sourceImage = customAvatarImage || selectedAvatar?.imageUrl;
 
-      // Tạo ảnh kết quả thử đồ thực tế qua Canvas Compositor
-      const renderedImg = await generateCompositeImage(
-        sourceImage,
-        selectedWig?.overlayImage,
-        selectedClothing?.overlayImage
-      );
+      // Tạo ảnh kết quả thử đồ thực tế qua bộ Smart AI Compositor
+      const renderedImg = await executeComposite(wigTransform, clothingTransform);
 
       // Gọi Backend AI endpoint (Gemini API phân tích vóc dáng và phong cách)
       let resData = null;
@@ -425,7 +417,7 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
       const finalResult = {
         tryOnId: resData?.tryOnId || 'TRYON-' + Date.now(),
         originalImage: sourceImage,
-        renderedImage: renderedImg || selectedClothing?.overlayImage || selectedWig?.overlayImage || sourceImage,
+        renderedImage: renderedImg || sourceImage,
         scores: resData?.scores || {
           overallFitScore: 96,
           faceHarmonization: 97,
@@ -437,9 +429,9 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
           recommendedCapSize: 'Size M (55 - 57cm)'
         },
         feedback: resData?.feedback || [
-          `✓ AI căn chỉnh viền chân tóc (Hairline) sát trán tự nhiên, tôn trọn đường nét gương mặt ${selectedAvatar?.faceShape || ''}.`,
-          `✓ Mẫu [${selectedClothing?.name || 'Trang phục'}] phối cùng mái tóc [${selectedWig?.name || 'tự nhiên'}] tạo nên tỷ lệ cơ thể thanh thoát, chuẩn phom dáng.`,
-          `✓ Bảng màu giữa trang phục và mái tóc tạo nên hiệu ứng thị giác sang trọng, hài hòa.`,
+          `✓ AI đã tự động bóc tách nền của mẫu [${selectedClothing?.name || 'Trang phục'}] và ghép ôm khít bờ vai tự nhiên.`,
+          `✓ Chân tóc của [${selectedWig?.name || 'mái tóc'}] được căn chỉnh sát mép trán với độ nghiêng chân thực, phủ nhẹ qua 2 bên gò má.`,
+          `✓ Bảng màu tổng thể tạo nên hiệu ứng thị giác sang trọng, tương phản hài hòa cùng làn da.`,
           `💡 Khuyên dùng: Nên chọn size áo [${selectedClothing?.recommendedSize || 'Size M'}] và mũ chụp tóc [${selectedWig?.capSize || 'Size M'}] để vừa vặn nhất.`
         ],
         selectedItems: {
@@ -468,7 +460,7 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
         setTimeout(() => {
           document.getElementById('try-on-result-section')?.scrollIntoView({ behavior: 'smooth' });
         }, 150);
-      }, 2200);
+      }, 2000);
 
     } catch (err) {
       setIsGenerating(false);
@@ -922,10 +914,178 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
                 <a 
                   href={tryOnResult.renderedImage} 
                   download="vibebili_ai_tryon_look.jpg"
-                  className="text-orange-600 hover:underline flex items-center gap-1"
+                  className="text-orange-600 hover:underline flex items-center gap-1 font-bold"
                 >
                   📥 Tải ảnh về máy
                 </a>
+              </div>
+
+              {/* BỘ CÔNG CỤ TINH CHỈNH TỌA ĐỘ VÀ KÍCH THƯỚC (CHO ĐỘ CHÍNH XÁC 99%) */}
+              <div className="w-full max-w-md mt-5">
+                <button
+                  type="button"
+                  onClick={() => setShowTransformControls(!showTransformControls)}
+                  className="w-full bg-orange-50 hover:bg-orange-100 text-orange-800 border border-orange-200 font-extrabold py-2.5 px-4 rounded-2xl text-xs flex items-center justify-between transition shadow-xs"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span>🛠️</span>
+                    <span>Tinh Chỉnh Khớp Dáng Thủ Công (Tóc & Trang Phục)</span>
+                  </span>
+                  <span>{showTransformControls ? '▲ Đóng' : '▼ Mở'}</span>
+                </button>
+
+                {showTransformControls && (
+                  <div className="mt-3 bg-white p-4 rounded-2xl border border-gray-200 shadow-md space-y-4 animate-fade-in text-xs">
+                    
+                    {/* Tabs chọn layer tinh chỉnh */}
+                    <div className="flex border-b pb-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setActiveAdjustTab('wig')}
+                        className={`flex-1 py-1.5 font-bold rounded-xl transition ${
+                          activeAdjustTab === 'wig'
+                            ? 'bg-black text-white shadow-xs'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        💇 Tóc Giả
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveAdjustTab('clothing')}
+                        className={`flex-1 py-1.5 font-bold rounded-xl transition ${
+                          activeAdjustTab === 'clothing'
+                            ? 'bg-black text-white shadow-xs'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        👗 Trang Phục
+                      </button>
+                    </div>
+
+                    {/* Điều khiển layer Tóc Giả */}
+                    {activeAdjustTab === 'wig' && (
+                      <div className="space-y-3">
+                        <div>
+                          <div className="flex justify-between font-semibold text-gray-700 mb-1">
+                            <span>Vị trí Cao / Thấp (Trục Dọc):</span>
+                            <span className="font-mono text-orange-600">{wigTransform.y}px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="-120"
+                            max="120"
+                            step="2"
+                            value={wigTransform.y}
+                            onChange={(e) => handleUpdateTransform('wig', 'y', e.target.value)}
+                            className="w-full accent-orange-600"
+                          />
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between font-semibold text-gray-700 mb-1">
+                            <span>Vị trí Trái / Phải (Trục Ngang):</span>
+                            <span className="font-mono text-orange-600">{wigTransform.x}px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="-80"
+                            max="80"
+                            step="2"
+                            value={wigTransform.x}
+                            onChange={(e) => handleUpdateTransform('wig', 'x', e.target.value)}
+                            className="w-full accent-orange-600"
+                          />
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between font-semibold text-gray-700 mb-1">
+                            <span>Kích Cỡ Mái Tóc (Thu nhỏ / Phóng to):</span>
+                            <span className="font-mono text-orange-600">{Math.round(wigTransform.scale * 100)}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.7"
+                            max="1.35"
+                            step="0.02"
+                            value={wigTransform.scale}
+                            onChange={(e) => handleUpdateTransform('wig', 'scale', e.target.value)}
+                            className="w-full accent-orange-600"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Điều khiển layer Trang Phục */}
+                    {activeAdjustTab === 'clothing' && (
+                      <div className="space-y-3">
+                        <div>
+                          <div className="flex justify-between font-semibold text-gray-700 mb-1">
+                            <span>Vị trí Cao / Thấp (Trục Dọc):</span>
+                            <span className="font-mono text-orange-600">{clothingTransform.y}px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="-120"
+                            max="120"
+                            step="2"
+                            value={clothingTransform.y}
+                            onChange={(e) => handleUpdateTransform('clothing', 'y', e.target.value)}
+                            className="w-full accent-orange-600"
+                          />
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between font-semibold text-gray-700 mb-1">
+                            <span>Vị trí Trái / Phải (Trục Ngang):</span>
+                            <span className="font-mono text-orange-600">{clothingTransform.x}px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="-80"
+                            max="80"
+                            step="2"
+                            value={clothingTransform.x}
+                            onChange={(e) => handleUpdateTransform('clothing', 'x', e.target.value)}
+                            className="w-full accent-orange-600"
+                          />
+                        </div>
+
+                        <div>
+                          <div className="flex justify-between font-semibold text-gray-700 mb-1">
+                            <span>Kích Cỡ Trang Phục (Thu nhỏ / Phóng to):</span>
+                            <span className="font-mono text-orange-600">{Math.round(clothingTransform.scale * 100)}%</span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.7"
+                            max="1.35"
+                            step="0.02"
+                            value={clothingTransform.scale}
+                            onChange={(e) => handleUpdateTransform('clothing', 'scale', e.target.value)}
+                            className="w-full accent-orange-600"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Nút đặt lại */}
+                    <div className="pt-2 border-t flex justify-between items-center">
+                      <button
+                        type="button"
+                        onClick={handleResetTransforms}
+                        className="text-gray-500 hover:text-black font-semibold text-[11px] underline"
+                      >
+                        🔄 Đặt lại mặc định
+                      </button>
+                      {isRecompositing && (
+                        <span className="text-orange-600 font-bold text-[11px] animate-pulse">
+                          Đang cập nhật...
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

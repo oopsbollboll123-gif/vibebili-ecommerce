@@ -148,7 +148,11 @@ export const tryOnAPI = {
   generateTryOn: (payload) => request('/try-on/generate', {
     method: 'POST',
     body: JSON.stringify(payload)
-  })
+  }),
+  getProxyUrl: (url) => {
+    if (!url || url.startsWith('data:') || url.startsWith('blob:')) return url;
+    return `${API_BASE_URL}/try-on/proxy-image?url=${encodeURIComponent(url)}`;
+  }
 };
 
 // 5. Phân hệ Dịch vụ Spa Tóc, Marketing & Tài chính Shop
