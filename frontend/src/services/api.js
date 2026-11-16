@@ -2,8 +2,9 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000
 
 // Hàm chung gửi request HTTP tới Backend có timeout an toàn chống treo UI
 const request = async (endpoint, options = {}) => {
+  const timeoutMs = options.timeout || (endpoint.includes('/try-on') ? 25000 : 8000);
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s timeout để UI không bao giờ bị treo
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const token = localStorage.getItem('vibebili_token');
     const headers = {

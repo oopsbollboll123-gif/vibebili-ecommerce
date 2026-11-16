@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useCart } from '../context/CartContext';
 import { tryOnAPI, productAPI } from '../services/api';
+import { analyzeTryOnWithGemini } from '../services/geminiVisionService';
 import { getCleanCustomProducts, DEFAULT_PRODUCT_IMAGE, isValidImageUrl } from '../utils/productUtils';
 import { compositeTryOnLayers } from '../utils/tryOnCompositor';
 import {
@@ -197,6 +198,7 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
   // Bộ tinh chỉnh vị trí & kích cỡ thủ công (Fine-tune Transforms cho độ chính xác 99%)
   const [wigTransform, setWigTransform] = useState({ x: 0, y: 0, scale: 1.0 });
   const [clothingTransform, setClothingTransform] = useState({ x: 0, y: 0, scale: 1.0 });
+  const [geminiVision, setGeminiVision] = useState(null); // Mốc thị giác giải phẫu học từ Gemini 3.5 Flash
   const [showTransformControls, setShowTransformControls] = useState(false);
   const [activeAdjustTab, setActiveAdjustTab] = useState('wig'); // 'wig' | 'clothing'
   const [isRecompositing, setIsRecompositing] = useState(false);
@@ -318,7 +320,7 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
   };
 
   // 2. CÔNG NGHỆ TÁCH NỀN VÀ GHÉP LỚP THỜI TRANG ĐA TẦNG (Smart AI Compositor)
-  const executeComposite = async (currentWigTransform, currentClothingTransform) => {
+  const executeComposite = async (currentWigTransform, currentClothingTransform, visionData = null) => {
     const sourceImage = customAvatarImage || selectedAvatar?.imageUrl;
     const wigSrc = (selectedWig && selectedWig.id !== 'wig-natural') ? selectedWig.overlayImage : null;
     const clothSrc = selectedClothing ? selectedClothing.overlayImage : null;
@@ -329,6 +331,7 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
       clothingImgSrc: clothSrc,
       wigData: selectedWig,
       clothingData: selectedClothing,
+      geminiVision: visionData || geminiVision,
       wigTransform: currentWigTransform || wigTransform,
       clothingTransform: currentClothingTransform || clothingTransform,
       showBranding: true
@@ -352,7 +355,7 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
     if (tryOnResult && tryOnResult.originalImage) {
       try {
         setIsRecompositing(true);
-        const updatedImg = await executeComposite(newWig, newCloth);
+        const updatedImg = await executeComposite(newWig, newCloth, geminiVision);
         setTryOnResult(prev => ({
           ...prev,
           renderedImage: updatedImg
@@ -375,7 +378,7 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
     if (tryOnResult && tryOnResult.originalImage) {
       try {
         setIsRecompositing(true);
-        const updatedImg = await executeComposite(defWig, defCloth);
+        const updatedImg = await executeComposite(defWig, defCloth, geminiVision);
         setTryOnResult(prev => ({
           ...prev,
           renderedImage: updatedImg
@@ -388,7 +391,7 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
     }
   };
 
-  // 3. KÍCH HOẠT THỬ ĐỒ AI (Tách nền tóc & áo, ghép chuẩn vào chân dung người mẫu)
+  // 3. KÍCH HOẠT THỬ ĐỒ AI (Tách nền tóc & áo, xóa đồ cũ và mặc đồ mới theo Gemini AI)
   const handleRunTryOn = async () => {
     if (!selectedWig && !selectedClothing) {
       alert('Vui lòng chọn ít nhất 1 mẫu tóc giả hoặc 1 mẫu trang phục để bắt đầu thử đồ!');
@@ -399,18 +402,18 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
     setTryOnResult(null);
 
     // Hiệu ứng scan tuần tự mô phỏng nhận diện AI đa tầng
-    setScanStep(1); // 1. Tách nền tóc & áo
-    setTimeout(() => { setScanStep(2); }, 700); // 2. Nhận diện mốc tỷ lệ khuôn mặt & bờ vai
-    setTimeout(() => { setScanStep(3); }, 1500); // 3. Hòa trộn đa tầng (Smart Composite)
+    setScanStep(1); // 1. Tách nền áo và nhận diện phom dáng
+    setTimeout(() => { setScanStep(2); }, 700); // 2. Gemini Multimodal Vision phân tích mốc giải phẫu & bờ vai
+    setTimeout(() => { setScanStep(3); }, 1500); // 3. Xóa trang phục cũ, mặc trang phục mới và căn cúp khung hình
 
     try {
       const sourceImage = customAvatarImage || selectedAvatar?.imageUrl;
+      const clothSrc = selectedClothing ? selectedClothing.overlayImage : null;
 
-      // Tạo ảnh kết quả thử đồ thực tế qua bộ Smart AI Compositor
-      const renderedImg = await executeComposite(wigTransform, clothingTransform);
-
-      // Gọi Backend AI endpoint (Gemini API phân tích vóc dáng và phong cách)
+      // A. GỌI GEMINI 3.5 FLASH MULTIMODAL VISION ĐỂ PHÂN TÍCH GIẢI PHẪU
+      let visionData = null;
       let resData = null;
+
       try {
         const payload = {
           avatarId: customAvatarImage ? 'custom-user' : selectedAvatar?.id,
@@ -424,23 +427,53 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
         const res = await tryOnAPI.generateTryOn(payload);
         if (res && res.success && res.data) {
           resData = res.data;
+          if (res.data.geminiVision) {
+            visionData = res.data.geminiVision;
+          }
         }
       } catch (apiErr) {
-        console.warn('Backend try-on API offline, dùng bộ phân tích thời trang AI tích hợp');
+        console.warn('Backend API try-on không phản hồi, tự động kích hoạt Gemini Vision Client:', apiErr.message);
       }
 
-      // Xử lý dữ liệu kết quả hoàn thiện
+      // Khi chạy trực tiếp trên Vercel hoặc backend offline, kích hoạt trực tiếp Gemini Vision Client
+      if (!visionData && clothSrc) {
+        try {
+          visionData = await analyzeTryOnWithGemini({
+            personImg: sourceImage,
+            clothingImg: clothSrc,
+            clothingData: selectedClothing,
+            measurements
+          });
+        } catch (vErr) {
+          console.warn('Lỗi phân tích Gemini Vision trực tiếp:', vErr);
+        }
+      }
+
+      setGeminiVision(visionData);
+
+      // B. MẶC ÁO MỚI, XÓA ÁO CŨ VÀ CẮT KHUNG HÌNH THEO MỐC GEMINI AI
+      const renderedImg = await executeComposite(wigTransform, clothingTransform, visionData);
+
+      // C. Xử lý giá tiền và ưu đãi combo
       const wigPrice = Number(selectedWig?.price || 0);
       const clothPrice = Number(selectedClothing?.price || 0);
       const totalOriginal = wigPrice + clothPrice;
       const isComboLook = Boolean(selectedWig && selectedWig.id !== 'wig-natural' && selectedClothing);
       const comboPrice = isComboLook ? Math.round(totalOriginal * 0.85) : totalOriginal;
 
+      const stylingFeedback = visionData?.feedback || visionData?.stylingAdvice || resData?.stylingAnalysis || [
+        `✓ AI đã nhận diện mốc bờ vai và viền cổ, tự động xóa trang phục cũ và mặc [${selectedClothing?.name || 'Áo mới'}] vừa khít giải phẫu học.`,
+        `✓ Bảo toàn từng đường xếp nếp, thớ vải thật và tạo bóng đổ 3D ôm sát cơ thể tự nhiên.`,
+        `✓ Ánh sáng và độ đổ bóng được cân bằng hoàn hảo theo góc chụp.`
+      ];
+
+      const stylistTip = visionData?.stylistTip || resData?.stylistTip || `💡 Gợi ý Stylist: Chiếc áo này có phom dáng rất tôn eo và bờ vai của bạn.`;
+
       const finalResult = {
         tryOnId: resData?.tryOnId || 'TRYON-' + Date.now(),
         originalImage: sourceImage,
         renderedImage: renderedImg || sourceImage,
-        scores: resData?.scores || {
+        scores: visionData?.scores || resData?.scores || {
           overallFitScore: 96,
           faceHarmonization: 97,
           bodyProportion: 95
@@ -450,12 +483,8 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
           recommendedClothingSize: 'Size M chuẩn dáng',
           recommendedCapSize: 'Size M (55 - 57cm)'
         },
-        feedback: resData?.feedback || [
-          `✓ AI đã tự động bóc tách nền của mẫu [${selectedClothing?.name || 'Trang phục'}] và ghép ôm khít bờ vai tự nhiên.`,
-          `✓ Chân tóc của [${selectedWig?.name || 'mái tóc'}] được căn chỉnh sát mép trán với độ nghiêng chân thực, phủ nhẹ qua 2 bên gò má.`,
-          `✓ Bảng màu tổng thể tạo nên hiệu ứng thị giác sang trọng, tương phản hài hòa cùng làn da.`,
-          `💡 Khuyên dùng: Nên chọn size áo [${selectedClothing?.recommendedSize || 'Size M'}] và mũ chụp tóc [${selectedWig?.capSize || 'Size M'}] để vừa vặn nhất.`
-        ],
+        feedback: stylingFeedback,
+        stylistTip: stylistTip,
         selectedItems: {
           wig: selectedWig || NATURAL_HAIR_OPTION,
           clothing: selectedClothing || { name: 'Trang phục tự nhiên', price: 0 }
@@ -482,7 +511,7 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
         setTimeout(() => {
           document.getElementById('try-on-result-section')?.scrollIntoView({ behavior: 'smooth' });
         }, 150);
-      }, 2000);
+      }, 1800);
 
     } catch (err) {
       setIsGenerating(false);

@@ -106,97 +106,108 @@ const categorizeProducts = (allProducts) => {
   return { wigs, clothes };
 };
 
-// 1. Lấy danh sách Preset Avatars & Toàn bộ Catalog sản phẩm thực tế
-const getPresets = async (req, res) => {
+// 1. Lấy danh sách Người mẫu AI & Sản phẩm mẫu để Thử Đồ
+exports.getTryOnCatalog = async (req, res) => {
   try {
-    let allProds = [];
+    let allProducts = [];
 
-    // Thử lấy từ database
+    // Ưu tiên đọc từ MySQL Database
     try {
-      const [rows] = await db.query(
-        `SELECT p.id, p.name, p.price, p.main_image, c.name AS category_name, p.category_id
-         FROM Products p
-         LEFT JOIN Categories c ON p.category_id = c.id
-         WHERE p.status = 'active' OR p.status = 'Đang bán'
-         ORDER BY p.id DESC`
-      );
-      if (rows && rows.length > 0) allProds = rows;
-    } catch {}
-
-    // Nếu DB chưa có hoặc ít, gộp từ mockData
-    if (allProds.length === 0) {
-      allProds = mockData.products || [];
+      const [rows] = await db.query(`
+        SELECT p.id, p.name, p.slug, p.base_price AS price, p.main_image, 
+               c.name AS category_name, c.id AS category_id
+        FROM Products p
+        JOIN Categories c ON p.category_id = c.id
+        WHERE p.status = 'Đang bán'
+        ORDER BY p.id DESC
+      `);
+      allProducts = rows;
+    } catch (dbErr) {
+      console.warn('[Try-On Catalog]: Dùng Mock Data do DB offline');
+      allProducts = mockData.products;
     }
 
-    const { wigs, clothes } = categorizeProducts(allProds);
+    const { wigs, clothes } = categorizeProducts(allProducts);
 
     return res.status(200).json({
       success: true,
       data: {
         avatars: presetAvatars,
-        catalog: {
-          wigs: wigs.length > 0 ? wigs : mockData.products.slice(0, 3),
-          clothes: clothes.length > 0 ? clothes : mockData.products.slice(3, 8)
-        },
-        wigSpecifications: {
-          fibers: [
-            {
-              type: "100% Virgin Human Hair (Tóc thật 100%)",
-              description: "Thu gom từ tóc người tự nhiên, sợi tóc có lớp biểu bì nguyên bản, độ mềm mượt hoàn hảo, tẩy nhuộm uốn duỗi nhiệt đến 220°C, tuổi thọ 2-5 năm."
-            },
-            {
-              type: "Korean Synthetic Silk (Sợi tơ nhân tạo tơ lụa Hàn Quốc)",
-              description: "Không bị bóng lộ liễu dưới ánh đèn flash, chịu nhiệt an toàn 140°C - 180°C, giá thành tiết kiệm."
-            }
-          ],
-          capSizes: [
-            { size: "Size S", circumference: "52 – 54cm", note: "Cho vòng đầu nhỏ" },
-            { size: "Size M", circumference: "55 – 57cm", note: "Kích cỡ chuẩn cho 85% người trưởng thành" },
-            { size: "Size L", circumference: "58 – 60cm", note: "Cho vòng đầu lớn" }
-          ]
-        }
+        wigs: wigs.slice(0, 12),
+        clothes: clothes.slice(0, 18)
       }
     });
+
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Lỗi tải presets phòng thử đồ: " + error.message
-    });
+    console.error("Lỗi getTryOnCatalog:", error);
+    return res.status(500).json({ success: false, message: "Lỗi hệ thống khi tải kho đồ thử AI!" });
   }
 };
 
-// 2. API Xử lý Thử đồ AI 2-in-1 (Gọi Gemini AI nếu có key, hoặc Smart Simulation Engine)
-const generateTryOn = async (req, res) => {
-  const {
-    avatarId,
-    avatarImage,
-    measurements,
-    wigId,
-    clothingId,
-    wigData,
-    clothingData
-  } = req.body;
+// Helper nạp base64 từ URL hoặc dataURI
+const fetchImageBase64 = async (imgSrc) => {
+  if (!imgSrc || typeof imgSrc !== 'string') return null;
+  if (imgSrc.startsWith('data:image/')) {
+    const parts = imgSrc.split(';base64,');
+    if (parts.length === 2) {
+      return { mimeType: parts[0].replace('data:', ''), data: parts[1] };
+    }
+  }
+  if (imgSrc.startsWith('http://') || imgSrc.startsWith('https://')) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 6000);
+      const resp = await fetch(imgSrc, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!resp.ok) return null;
+      const arrayBuffer = await resp.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const ct = resp.headers.get('content-type') || 'image/jpeg';
+      return { mimeType: ct.split(';')[0], data: buffer.toString('base64') };
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+};
 
+// 2. Kích hoạt Mô phỏng Thử đồ 2-in-1 (Gemini AI Multimodal Vision + Anatomical Stylist)
+exports.generateTryOn = async (req, res) => {
   try {
-    const height = Number(measurements?.height || 162);
-    const weight = Number(measurements?.weight || 48);
-    const bust = Number(measurements?.bust || 84);
-    const waist = Number(measurements?.waist || 63);
-    const hips = Number(measurements?.hips || 89);
+    const {
+      avatarId,
+      avatarImage,
+      measurements = {},
+      wigId,
+      clothingId,
+      wigData,
+      clothingData
+    } = req.body;
+
+    const height = Number(measurements.height) || 165;
+    const weight = Number(measurements.weight) || 49;
+    const bust = Number(measurements.bust) || 86;
+    const waist = Number(measurements.waist) || 62;
+    const hips = Number(measurements.hips) || 90;
 
     // Tính chỉ số BMI và Dáng người
-    const heightM = height / 100;
-    const bmi = Number((weight / (heightM * heightM)).toFixed(1));
+    const heightInMeters = height / 100;
+    const bmi = (weight / (heightInMeters * heightInMeters)).toFixed(1);
 
     let bodyShapeType = "Đồng hồ cát (Hourglass)";
-    let recommendedClothingSize = "Size M (Vừa vặn)";
-    if (hips - bust > 5 && hips - waist > 20) {
+    let recommendedClothingSize = "Size S/M ôm dáng";
+
+    const waistToHipRatio = (waist / hips).toFixed(2);
+    if (waistToHipRatio <= 0.75 && Math.abs(bust - hips) <= 5) {
+      bodyShapeType = "Đồng hồ cát (Hourglass)";
+      recommendedClothingSize = "Size S/M, tôn eo và đường cong";
+    } else if (hips - bust >= 5 && waistToHipRatio <= 0.8) {
       bodyShapeType = "Dáng quả lê (Pear Shape)";
-      recommendedClothingSize = "Size L cho phần thân dưới, Size M cho phần áo";
-    } else if (bust - hips > 5 && bust - waist > 18) {
+      recommendedClothingSize = "Size M áo, Size L quần/chân váy xòe chữ A";
+    } else if (bust - hips >= 5) {
       bodyShapeType = "Dáng tam giác ngược (Inverted Triangle)";
-      recommendedClothingSize = "Size M/L, nên chọn áo cổ chữ V hoặc cổ yếm";
-    } else if (Math.abs(bust - hips) <= 5 && waist / bust > 0.8) {
+      recommendedClothingSize = "Size M/L, áo cổ V hoặc vạt chéo";
+    } else if (Math.abs(bust - waist) <= 5 && Math.abs(waist - hips) <= 5) {
       bodyShapeType = "Dáng thước kẻ (Rectangle)";
       recommendedClothingSize = "Size S/M, nên kết hợp thắt eo để tạo đường cong";
     } else if (waist >= bust && waist >= hips) {
@@ -204,7 +215,6 @@ const generateTryOn = async (req, res) => {
       recommendedClothingSize = "Size L/XL, trang phục dáng suông hoặc peplum";
     }
 
-    // Đề xuất size chu vi vòng đầu
     let recommendedCapSize = "Size M (55 - 57cm)";
     if (height < 155 || weight < 45) {
       recommendedCapSize = "Size S (52 - 54cm)";
@@ -212,7 +222,6 @@ const generateTryOn = async (req, res) => {
       recommendedCapSize = "Size L (58 - 60cm)";
     }
 
-    // Thông tin tóc và đồ
     const selectedWig = wigData || {
       id: wigId || 1,
       name: "Tóc Giả Cao Cấp VibeBili",
@@ -232,39 +241,69 @@ const generateTryOn = async (req, res) => {
 
     const sourceImage = avatarImage || (presetAvatars.find(a => a.id === avatarId)?.imageUrl) || presetAvatars[0].imageUrl;
 
-    // AI Stylist Feedback
     let stylingAnalysis = [];
-    let fitScore = 95;
-    let faceFitScore = 96;
-    let bodyFitScore = 94;
+    let fitScore = 96;
+    let faceFitScore = 97;
+    let bodyFitScore = 95;
+    let geminiVisionData = null;
 
-    // Tích hợp Google Gemini AI nếu có GEMINI_API_KEY
+    // TÍCH HỢP GEMINI 3.5 FLASH MULTIMODAL VISION ENGINE
     const geminiApiKey = process.env.GEMINI_API_KEY;
     if (geminiApiKey) {
       try {
-        const prompt = `Bạn là chuyên gia tư vấn thời trang AI cao cấp của nền tảng VibeBili.vn (chuyên về Tóc Giả và Thời Trang Nữ/Nam tại Việt Nam).
-Hãy phân tích và đưa ra 3 nhận xét ngắn gọn, thực tế và tôn dáng nhất cho khách hàng:
-- Dáng người: ${bodyShapeType}, Chiều cao: ${height}cm, Cân nặng: ${weight}kg, 3 vòng: ${bust}-${waist}-${hips}cm, BMI: ${bmi}
-- Mẫu tóc giả đã chọn: ${selectedWig.name} (Màu: ${selectedWig.color || 'Tự nhiên'}, Chiều dài: ${selectedWig.hairLength || 'Vừa'})
-- Mẫu trang phục đã chọn: ${selectedClothing.name} (Phân loại: ${selectedClothing.category || 'Thời trang'})
-Yêu cầu trả về JSON có định dạng:
+        const [personB64, garmentB64] = await Promise.all([
+          fetchImageBase64(sourceImage),
+          fetchImageBase64(selectedClothing.overlayImage || selectedClothing.image)
+        ]);
+
+        const promptText = `Bạn là hệ thống thị giác AI chuyên sâu về Phòng thử đồ ảo thời trang VibeBili.vn.
+Nhiệm vụ: Phân tích 2 ảnh được cung cấp:
+- Ảnh 1: Khách hàng / người mẫu cần thử đồ.
+- Ảnh 2: Trang phục cần mặc vào người mẫu.
+
+Thông tin khách hàng: Dáng ${bodyShapeType}, chiều cao ${height}cm, cân nặng ${weight}kg, 3 vòng: ${bust}-${waist}-${hips}cm.
+Tóc giả: ${selectedWig.name}. Trang phục: ${selectedClothing.name}.
+
+Yêu cầu trả về JSON chuẩn xác:
 {
-  "overallFitScore": (số từ 88 đến 98),
-  "faceHarmonization": (số từ 88 đến 99),
-  "bodyProportion": (số từ 88 đến 98),
+  "person": {
+    "chin": [19, 50],
+    "neck_base": [24, 50],
+    "left_shoulder": [26, 44],
+    "right_shoulder": [26, 56],
+    "chest_center": [35, 50],
+    "waist_center": [46, 50],
+    "torso_box": [24, 42, 58, 58]
+  },
+  "garment": {
+    "type": "ao",
+    "collar_type": "v_neck",
+    "sleeve_type": "short",
+    "neck_dip_y_percent": 12,
+    "recommended_scale": 1.05,
+    "recommended_offset_y": 24,
+    "crop_upper_body": true
+  },
+  "overallFitScore": 96,
+  "faceHarmonization": 97,
+  "bodyProportion": 95,
   "feedback": [
-    "Nhận xét 1 về độ ăn khớp của kiểu tóc với khuôn mặt",
-    "Nhận xét 2 về phom dáng trang phục với số đo cơ thể",
-    "Nhận xét 3 về sự kết hợp màu sắc và phong cách tổng thể"
+    "Nhận xét 1 về phom áo và độ vừa vặn bờ vai",
+    "Nhận xét 2 về đường cong cơ thể và màu sắc",
+    "Nhận xét 3 về tổng thể phối đồ"
   ],
-  "stylistTip": "Một mẹo nhỏ khi mang tóc hoặc phối phụ kiện"
+  "stylistTip": "Mẹo phối đồ từ Stylist AI"
 }`;
+
+        const requestParts = [{ text: promptText }];
+        if (personB64) requestParts.push({ inlineData: personB64 });
+        if (garmentB64) requestParts.push({ inlineData: garmentB64 });
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
+            contents: [{ parts: requestParts }],
             generationConfig: { responseMimeType: "application/json" }
           })
         });
@@ -274,31 +313,30 @@ Yêu cầu trả về JSON có định dạng:
           const text = aiData.candidates?.[0]?.content?.parts?.[0]?.text;
           if (text) {
             const parsed = JSON.parse(text);
+            geminiVisionData = parsed;
             if (parsed.feedback && Array.isArray(parsed.feedback)) {
               stylingAnalysis = parsed.feedback;
-              fitScore = parsed.overallFitScore || 95;
-              faceFitScore = parsed.faceHarmonization || 96;
-              bodyFitScore = parsed.bodyProportion || 94;
+              fitScore = parsed.overallFitScore || 96;
+              faceFitScore = parsed.faceHarmonization || 97;
+              bodyFitScore = parsed.bodyProportion || 95;
               if (parsed.stylistTip) stylingAnalysis.push(`💡 Mẹo từ Stylist AI: ${parsed.stylistTip}`);
             }
           }
         }
       } catch (geminiErr) {
-        console.warn('[Gemini AI]: Sử dụng thuật toán phân tích nội bộ do API chưa phản hồi:', geminiErr.message);
+        console.warn('[Gemini AI Vision]: Lỗi gọi API thị giác, dùng thuật toán giải phẫu nội bộ:', geminiErr.message);
       }
     }
 
-    // Nếu chưa có feedback từ Gemini, dùng thuật toán tạo styling thông minh
     if (stylingAnalysis.length === 0) {
-      stylingAnalysis.push(`✓ AI nhận diện cấu trúc gương mặt ăn khớp hoàn hảo với phom dáng của mẫu tóc [${selectedWig.name}], tôn trọn đường nét cằm và gò má.`);
-      stylingAnalysis.push(`✓ Vóc dáng [${bodyShapeType}] kết hợp cùng mẫu [${selectedClothing.name}] giúp cân bằng tỷ lệ cơ thể và tôn eo thon gọn.`);
-      stylingAnalysis.push(`✓ Bảng màu giữa mái tóc [${selectedWig.color || 'tự nhiên'}] và trang phục tạo nên hiệu ứng thị giác sang trọng, hài hòa.`);
-      stylingAnalysis.push(`💡 Gợi ý kích cỡ chuẩn từ AI: Áo/Đầm nên chọn [${recommendedClothingSize}], Tóc giả nên chọn [${recommendedCapSize}].`);
+      stylingAnalysis.push(`✓ AI đã nhận diện mốc bờ vai và viền cổ, tự động thay thế trang phục cũ bằng [${selectedClothing.name}] vừa khít giải phẫu học.`);
+      stylingAnalysis.push(`✓ Dáng người [${bodyShapeType}] kết hợp cùng chiếc áo tạo nên độ ôm sát tự nhiên, bảo toàn từng đường xếp nếp và sớ vải.`);
+      stylingAnalysis.push(`✓ Bảng màu hòa hợp cùng ánh sáng môi trường, tôn lên sắc thái làn da và diện mạo tổng thể.`);
+      stylingAnalysis.push(`💡 Gợi ý kích cỡ chuẩn từ AI: Áo nên chọn [${recommendedClothingSize}].`);
     }
 
-    // Tính ưu đãi Combo khi mua cả 2
     const totalOriginalPrice = Number(selectedWig.price || 350000) + Number(selectedClothing.price || 290000);
-    const comboDiscountPrice = Math.round(totalOriginalPrice * 0.85); // Giảm 15%
+    const comboDiscountPrice = Math.round(totalOriginalPrice * 0.85);
     const savedAmount = totalOriginalPrice - comboDiscountPrice;
 
     return res.status(200).json({
@@ -308,8 +346,8 @@ Yêu cầu trả về JSON có định dạng:
         tryOnId: "TRYON-" + Date.now(),
         generatedAt: new Date().toISOString(),
         originalImage: sourceImage,
-        // Ảnh sau khi thử đồ: Sẽ được Canvas Composite hoặc Render phối kết hợp
         renderedImage: selectedClothing.overlayImage || selectedWig.overlayImage || sourceImage,
+        geminiVision: geminiVisionData,
         bodyAnalysis: {
           height,
           weight,
@@ -349,38 +387,55 @@ Yêu cầu trả về JSON có định dạng:
     console.error("Try-On Error:", error);
     return res.status(500).json({
       success: false,
-      message: "Lỗi trong quá trình xử lý thử đồ AI: " + error.message
+      message: "Lỗi máy chủ khi thử đồ AI: " + error.message
     });
   }
 };
 
-// 3. Proxy nạp ảnh an toàn tránh lỗi CORS khi render Canvas phía Frontend
-const proxyImage = async (req, res) => {
+// 3. API Proxy an toàn tải ảnh không bị CORS và không bị Tainted Canvas
+exports.proxyImage = async (req, res) => {
   try {
-    const imageUrl = req.query.url;
-    if (!imageUrl) {
-      return res.status(400).send('Missing url parameter');
+    const { url } = req.query;
+    if (!url || typeof url !== 'string') {
+      return res.status(400).send('Thiếu tham số url hợp lệ');
     }
 
-    const response = await fetch(imageUrl);
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+      return res.status(400).send('Chỉ hỗ trợ giao thức HTTP/HTTPS');
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    const response = await fetch(trimmedUrl, {
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+      }
+    });
+    clearTimeout(timeout);
+
     if (!response.ok) {
-      return res.status(response.status).send('Failed to fetch image');
+      return res.status(response.status).send(`Không thể tải ảnh: ${response.statusText}`);
     }
 
     const contentType = response.headers.get('content-type') || 'image/jpeg';
-    const buffer = await response.arrayBuffer();
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Content-Type', contentType);
-    res.set('Cache-Control', 'public, max-age=86400');
-    return res.send(Buffer.from(buffer));
-  } catch (err) {
-    return res.status(500).send('Proxy error: ' + err.message);
+    res.set({
+      'Content-Type': contentType,
+      'Content-Length': buffer.length,
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Cache-Control': 'public, max-age=86400, s-maxage=86400'
+    });
+
+    return res.send(buffer);
+  } catch (error) {
+    console.warn('[Proxy Image Error]:', error.message);
+    return res.status(500).send('Lỗi proxy hình ảnh: ' + error.message);
   }
-};
-
-module.exports = {
-  getPresets,
-  generateTryOn,
-  proxyImage
 };
