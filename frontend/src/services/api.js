@@ -129,7 +129,27 @@ export const productAPI = {
     const queryString = query.toString();
     return request(`/products${queryString ? `?${queryString}` : ''}`);
   },
-  getById: (id) => request(`/products/${id}`),
+  getById: async (id) => {
+    // 1. Thử Backend API trước
+    try {
+      const res = await request(`/products/${id}`);
+      if (res && res.success && res.data) return res;
+    } catch (e) {
+      console.warn(`[API] /products/${id} thất bại, thử Firestore...`);
+    }
+    // 2. Fallback: tìm trong Cloud Firestore (giống getAll)
+    try {
+      const cloudProds = await fetchCloudProducts();
+      if (cloudProds && cloudProds.length > 0) {
+        const found = cloudProds.find(p => String(p.id) === String(id));
+        if (found) return { success: true, data: found, source: 'cloud' };
+      }
+    } catch (e) {
+      console.warn('[Cloud Firestore] getById fallback failed:', e.message);
+    }
+    // 3. Trả về không tìm thấy
+    return { success: false, data: null };
+  },
   create: async (productData) => {
     // Lưu đồng bộ trực tiếp lên Cloud Firestore
     await syncProductToCloud(productData).catch(() => {});
