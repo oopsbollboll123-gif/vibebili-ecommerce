@@ -16,6 +16,7 @@ import {
   ArrowLeftIcon,
   SparklesIcon
 } from './Icons';
+import TryOnModal from './TryOnModal';
 
 function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavigatePolicy, onBack }) {
   const { addToCart, openCart } = useCart();
@@ -56,6 +57,7 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
   // ──────────────────────────────────────────────────────────────────────
 
   const [product, setProduct] = useState(null);
+  const [isTryOnOpen, setIsTryOnOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [reviews, setReviews] = useState([]);
   const [reviewFilter, setReviewFilter] = useState('all');
@@ -833,6 +835,13 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
               <span>Thêm vào giỏ hàng</span>
             </button>
             <button
+              type="button"
+              onClick={() => setIsTryOnOpen(true)}
+              className="px-5 py-2.5 border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-50 font-bold rounded-full transition uppercase tracking-wider text-xs shadow-sm flex items-center justify-center space-x-1.5"
+            >
+              <span>✨ Thử đồ ảo AI</span>
+            </button>
+            <button
               onClick={handleBuyNow}
               className="flex-1 min-h-[48px] bg-black text-white font-extrabold py-3.5 px-6 rounded-full hover:bg-neutral-800 transition uppercase tracking-wider text-xs shadow-md flex items-center justify-center space-x-2"
             >
@@ -850,6 +859,12 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
               <span>{wishlisted ? 'Đã Lưu' : 'Thả Tim'}</span>
             </button>
           </div>
+
+          <TryOnModal
+            product={activeProduct || product}
+            isOpen={isTryOnOpen}
+            onClose={() => setIsTryOnOpen(false)}
+          />
 
           {/* NÚT THỬ ĐỒ AI 2-IN-1 */}
           <button
