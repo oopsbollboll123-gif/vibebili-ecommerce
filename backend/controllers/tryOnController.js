@@ -1,106 +1,200 @@
 const crypto = require('crypto');
 const sharp = require('sharp');
 const axios = require('axios');
-const { GoogleGenAI } = require('@google/genai');
-const db = require('../config/db'); // Sửa lại đường dẫn này cho đúng với file kết nối MySQL hiện tại của bạn
+const db = require('../config/db');
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// =========================================================
+// GEMINI SIZE ADVICE — dùng fetch() trực tiếp, KHÔNG dùng SDK
+// Model chain: gemini-flash-lite-latest → gemini-3.1-flash-lite → gemini-3-flash-preview
+// =========================================================
+async function getGeminiSizeAdvice(prompt) {
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (!geminiKey) return null;
 
-function calculateEaseAllowance(userMeasurements, sizeChart) {
-    const analysis = {};
-    for (const [sizeName, specs] of Object.entries(sizeChart)) {
-        analysis[sizeName] = {
-            chest_diff: specs.chest ? specs.chest - userMeasurements.chest : null,
-            shoulder_diff: specs.shoulder ? specs.shoulder - userMeasurements.shoulder : null,
-            waist_diff: specs.waist ? specs.waist - userMeasurements.waist : null,
-        };
+  const models = [
+    'gemini-flash-lite-latest',
+    'gemini-3.1-flash-lite',
+    'gemini-3-flash-preview'
+  ];
+
+  for (const model of models) {
+    try {
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: 'application/json' }
+          }),
+          signal: AbortSignal.timeout(15000)
+        }
+      );
+
+      if (!r.ok) {
+        console.warn(`Gemini model ${model} returned ${r.status}, trying next...`);
+        continue;
+      }
+
+      const data = await r.json();
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (text) {
+        return JSON.parse(text);
+      }
+    } catch (err) {
+      console.warn(`Gemini model ${model} error: ${err.message}, trying next...`);
     }
-    return analysis;
+  }
+
+  return null;
 }
 
+// =========================================================
+// HELPER: Tính độ chênh lệch kích thước
+// =========================================================
+function calculateEaseAllowance(userMeasurements, sizeChart) {
+  const analysis = {};
+  for (const [sizeName, specs] of Object.entries(sizeChart)) {
+    analysis[sizeName] = {
+      chest_diff: specs.chest ? specs.chest - (userMeasurements.chest || 0) : null,
+      shoulder_diff: specs.shoulder ? specs.shoulder - (userMeasurements.shoulder || 0) : null,
+      waist_diff: specs.waist ? specs.waist - (userMeasurements.waist || 0) : null,
+    };
+  }
+  return analysis;
+}
+
+// =========================================================
+// CONTROLLER: POST /api/try-on/virtual-try-on
+// =========================================================
 exports.virtualTryOn = async (req, res) => {
-    try {
-        const { userId, productId, userImageBase64, measurements } = req.body;
+  try {
+    const { userId, productId, userImageBase64, measurements } = req.body;
 
-        // 1. Nén & resize ảnh đầu vào cho nhẹ trước khi gửi AI
-        const imgBuffer = Buffer.from(userImageBase64.replace(/^data:image\/\w+;base64,/, ''), 'base64');
-        const optimizedBuffer = await sharp(imgBuffer)
-            .resize({ width: 768, withoutEnlargement: true })
-            .jpeg({ quality: 80 })
-            .toBuffer();
-        const optimizedBase64 = `data:image/jpeg;base64,${optimizedBuffer.toString('base64')}`;
-
-        // 2. Kiểm tra Cache trong MySQL xem khách đã thử ảnh này với món đồ này chưa
-        const imageHash = crypto.createHash('md5').update(optimizedBuffer).digest('hex');
-        const [cachedRows] = await db.query(
-            'SELECT result_image_url, size_advice FROM try_on_history WHERE product_id = ? AND user_image_hash = ? LIMIT 1',
-            [productId, imageHash]
-        );
-
-        if (cachedRows.length > 0) {
-            return res.json({
-                source: 'cache',
-                resultImageUrl: cachedRows[0].result_image_url,
-                sizeAdvice: typeof cachedRows[0].size_advice === 'string' 
-                    ? JSON.parse(cachedRows[0].size_advice) 
-                    : cachedRows[0].size_advice
-            });
-        }
-
-        // 3. Lấy thông tin sản phẩm từ MySQL
-        const [products] = await db.query('SELECT name, image_url, size_chart, material FROM products WHERE id = ?', [productId]);
-        if (products.length === 0) {
-            return res.status(404).json({ message: 'Không tìm thấy sản phẩm' });
-        }
-        const product = products[0];
-        const parsedSizeChart = typeof product.size_chart === 'string' ? JSON.parse(product.size_chart) : product.size_chart;
-
-        // 4. Chạy song song: Gọi Python của B ghép ảnh + Gọi Gemini tư vấn Size
-        // LƯU Ý: Kiểm tra file ai-service-python/main.py của B để sửa đúng đường dẫn (/api/try-on) và tên biến nếu B đặt khác
-        const tryOnPromise = axios.post(`${process.env.PYTHON_AI_URL}/api/try-on`, {
-            person_image: optimizedBase64,
-            garment_image_url: product.image_url
-        });
-
-        let sizeAdvicePromise = Promise.resolve(null);
-        if (measurements && parsedSizeChart) {
-            const easeData = calculateEaseAllowance(measurements, parsedSizeChart);
-            const prompt = `
-                Bạn là chuyên gia tư vấn thời trang của sàn thương mại điện tử VibeBili.
-                Sản phẩm: ${product.name} | Chất liệu: ${product.material}.
-                Số đo khách hàng (cm/kg): ${JSON.stringify(measurements)}.
-                Độ dư (Ease Allowance = Áo - Người) theo từng size: ${JSON.stringify(easeData)}.
-                Hãy phân tích độ vừa vặn tại ngực, vai, eo dựa trên độ co giãn của chất liệu và đề xuất 1 size chuẩn nhất.
-                Trả về đúng định dạng JSON: {"recommended_size": "...", "fit_analysis": "...", "warning": "..."}
-            `;
-
-            sizeAdvicePromise = ai.models.generateContent({
-                model: 'gemini-2.5-flash',
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
-            });
-        }
-
-        const [pythonRes, geminiRes] = await Promise.all([tryOnPromise, sizeAdvicePromise]);
-
-        // LƯU Ý: Kiểm tra tên biến trả về từ Python của B (result_image_url)
-        const resultImageUrl = pythonRes.data.result_image_url;
-        const sizeAdvice = geminiRes ? JSON.parse(geminiRes.text) : null;
-
-        // 5. Lưu kết quả vào Cache MySQL
-        await db.query(
-            'INSERT INTO try_on_history (user_id, product_id, user_image_hash, result_image_url, size_advice) VALUES (?, ?, ?, ?, ?)',
-            [userId || null, productId, imageHash, resultImageUrl, JSON.stringify(sizeAdvice)]
-        );
-
-        return res.json({
-            source: 'ai_generated',
-            resultImageUrl,
-            sizeAdvice
-        });
-
-    } catch (error) {
-        console.error('Lỗi Virtual Try-On:', error);
-        res.status(500).json({ message: 'Lỗi xử lý phòng thử đồ AI', error: error.message });
+    if (!userImageBase64 || !productId) {
+      return res.status(400).json({ message: 'Thiếu ảnh hoặc productId' });
     }
+
+    // 1. Nén & resize ảnh đầu vào
+    const imgBuffer = Buffer.from(
+      userImageBase64.replace(/^data:image\/\w+;base64,/, ''),
+      'base64'
+    );
+    const optimizedBuffer = await sharp(imgBuffer)
+      .resize({ width: 768, withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    const optimizedBase64 = `data:image/jpeg;base64,${optimizedBuffer.toString('base64')}`;
+
+    // 2. Kiểm tra Cache MySQL
+    const imageHash = crypto.createHash('md5').update(optimizedBuffer).digest('hex');
+    try {
+      const [cachedRows] = await db.query(
+        'SELECT result_image_url, size_advice FROM try_on_history WHERE product_id = ? AND user_image_hash = ? LIMIT 1',
+        [productId, imageHash]
+      );
+      if (cachedRows.length > 0) {
+        return res.json({
+          source: 'cache',
+          resultImageUrl: cachedRows[0].result_image_url,
+          sizeAdvice: typeof cachedRows[0].size_advice === 'string'
+            ? JSON.parse(cachedRows[0].size_advice)
+            : cachedRows[0].size_advice
+        });
+      }
+    } catch (dbErr) {
+      console.warn('MySQL cache check failed (non-fatal):', dbErr.message);
+    }
+
+    // 3. Lấy thông tin sản phẩm từ MySQL
+    let product = null;
+    try {
+      const [products] = await db.query(
+        'SELECT name, image_url, size_chart, material FROM products WHERE id = ?',
+        [productId]
+      );
+      if (products.length > 0) {
+        product = products[0];
+      }
+    } catch (dbErr) {
+      console.warn('MySQL product fetch failed (non-fatal):', dbErr.message);
+    }
+
+    if (!product) {
+      return res.status(404).json({ message: 'Không tìm thấy sản phẩm' });
+    }
+
+    const parsedSizeChart = (() => {
+      try {
+        return typeof product.size_chart === 'string'
+          ? JSON.parse(product.size_chart)
+          : product.size_chart;
+      } catch { return null; }
+    })();
+
+    // Đảm bảo link ảnh sản phẩm là URL đầy đủ
+    const fullGarmentUrl = product.image_url && product.image_url.startsWith('http')
+      ? product.image_url
+      : product.image_url
+        ? `http://localhost:${process.env.PORT || 5000}${product.image_url.startsWith('/') ? '' : '/'}${product.image_url}`
+        : null;
+
+    if (!fullGarmentUrl) {
+      return res.status(400).json({ message: 'Sản phẩm chưa có ảnh để thử đồ' });
+    }
+
+    // 4. Chạy song song: Python AI Try-On + Gemini Size Advice
+    const pythonUrl = process.env.PYTHON_AI_URL || 'http://localhost:8000';
+
+    const tryOnPromise = axios.post(`${pythonUrl}/api/generate-tryon`, {
+      person_img: optimizedBase64,
+      garment_img: fullGarmentUrl,
+      garment_des: product.name
+    }, { timeout: 120000 }); // IDM-VTON có thể mất đến 2 phút
+
+    let sizeAdvicePromise = Promise.resolve(null);
+    if (measurements && parsedSizeChart) {
+      const easeData = calculateEaseAllowance(measurements, parsedSizeChart);
+      const prompt = `Bạn là chuyên gia tư vấn thời trang của sàn thương mại điện tử VibeBili.
+Sản phẩm: ${product.name} | Chất liệu: ${product.material || 'không rõ'}.
+Số đo khách hàng (cm/kg): ${JSON.stringify(measurements)}.
+Độ dư (Ease Allowance = Áo - Người) theo từng size: ${JSON.stringify(easeData)}.
+Hãy phân tích độ vừa vặn tại ngực, vai, eo dựa trên độ co giãn của chất liệu và đề xuất 1 size chuẩn nhất.
+Trả về đúng định dạng JSON: {"recommended_size": "...", "fit_analysis": "...", "warning": "..."}`;
+
+      sizeAdvicePromise = getGeminiSizeAdvice(prompt);
+    }
+
+    const [pythonRes, sizeAdvice] = await Promise.all([tryOnPromise, sizeAdvicePromise]);
+
+    // Lấy đúng biến result_img từ Python service
+    const resultImageUrl = pythonRes?.data?.result_img;
+    if (!resultImageUrl) {
+      throw new Error('Python AI service không trả về result_img');
+    }
+
+    // 5. Lưu kết quả vào Cache MySQL
+    try {
+      await db.query(
+        'INSERT INTO try_on_history (user_id, product_id, user_image_hash, result_image_url, size_advice) VALUES (?, ?, ?, ?, ?)',
+        [userId || null, productId, imageHash, resultImageUrl, JSON.stringify(sizeAdvice)]
+      );
+    } catch (dbErr) {
+      console.warn('MySQL cache insert failed (non-fatal):', dbErr.message);
+    }
+
+    return res.json({
+      source: 'ai_generated',
+      resultImageUrl,
+      sizeAdvice
+    });
+
+  } catch (error) {
+    console.error('Lỗi Virtual Try-On:', error);
+    res.status(500).json({
+      message: 'Lỗi xử lý phòng thử đồ AI',
+      error: error.message
+    });
+  }
 };

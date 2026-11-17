@@ -565,11 +565,6 @@ const logout = async (req, res) => {
   });
 };
 
-  return res.status(200).json({
-    success: true,
-    message: 'Đăng xuất tài khoản và vô hiệu hóa Session an toàn!'
-  });
-};
 
 // ============================================================
 // 9. QUÊN MẬT KHẨU — Gửi OTP 6 chữ số đến Gmail (hết hạn 10 phút)

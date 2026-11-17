@@ -707,15 +707,15 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
             <div className="flex items-center justify-between border-b pb-3">
               <h2 className="text-sm font-black uppercase tracking-wider flex items-center space-x-2 text-gray-950">
                 <SparklesIcon className="w-4 h-4 text-orange-600" />
-                <span>Bước 2: Chọn Đồ Phối Hợp (01 Tóc Giả & 01 Trang Phục)</span>
+                <span>Bước 2: Chọn Trang Phục Muốn Thử</span>
               </h2>
               <span className="text-[10px] bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded-full uppercase">
                 {wigs.length + clothes.length} Sản phẩm thật
               </span>
             </div>
 
-            {/* 1. KHO TÓC GIẢ */}
-            <div>
+            {/* 1. KHO TÓC GIẢ — ĐÃ ẨN: Chỉ dùng ảnh chính diện người thật với IDM-VTON */}
+            {false && <div>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
                 <label className="text-xs font-bold text-gray-800 uppercase tracking-wide">
                   1. Mẫu Tóc Giả ({filteredWigs.length} mẫu có sẵn):
@@ -782,6 +782,15 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
                   })}
                 </div>
               )}
+            </div>}
+
+            {/* Hướng dẫn chụp ảnh chính diện */}
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 mb-3 flex items-start gap-2">
+              <span className="text-lg">📸</span>
+              <div>
+                <p className="text-xs font-bold text-indigo-800">Yêu cầu ảnh avatar để AI ghép đồ chuẩn nhất:</p>
+                <p className="text-xs text-indigo-700 mt-0.5">Chụp <strong>chính diện</strong> — thẳng mặt, thẳng người, nền đơn giản. Tốt nhất: ảnh toàn thân hoặc nửa người trên.</p>
+              </div>
             </div>
 
             {/* 2. KHO TRANG PHỤC THỜI TRANG */}
@@ -858,9 +867,9 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
               <button
                 type="button"
                 onClick={handleRunTryOn}
-                disabled={isGenerating || (!selectedWig && !selectedClothing)}
+                disabled={isGenerating || !selectedClothing}
                 className={`w-full bg-black text-white font-black py-4 rounded-full text-xs uppercase tracking-wider hover:bg-neutral-800 transition shadow-xl flex items-center justify-center space-x-2 min-h-[50px] cursor-pointer ${
-                  isGenerating ? 'opacity-80 cursor-wait' : (!selectedWig && !selectedClothing ? 'opacity-50 cursor-not-allowed' : '')
+                  isGenerating ? 'opacity-80 cursor-wait' : (!selectedClothing ? 'opacity-50 cursor-not-allowed' : '')
                 }`}
               >
                 {isGenerating ? (
@@ -879,9 +888,9 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
                   </>
                 )}
               </button>
-              {(!selectedWig && !selectedClothing) && (
+              {(!selectedClothing) && (
                 <p className="text-[11px] text-red-500 font-semibold text-center mt-2">
-                  ⚠️ Vui lòng chọn ít nhất 1 mẫu tóc giả hoặc 1 mẫu trang phục ở trên để kích hoạt thử đồ!
+                  ⚠️ Vui lòng chọn ít nhất 1 mẫu trang phục ở trên để kích hoạt thử đồ!
                 </p>
               )}
             </div>

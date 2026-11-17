@@ -30,12 +30,12 @@ export default function TryOnModal({ product, isOpen, onClose }) {
   };
 
   const handleTryOn = async () => {
-    if (!userImage) return alert('Vui lòng tải lên ảnh chân dung/toàn thân của bạn!');
+    if (!userImage) return alert('Vui lòng tải lên ảnh chính diện (thẳng mặt, thẳng người) của bạn!');
     setLoading(true);
 
     try {
-      // 1. Thử gọi Backend API (/api/virtual-try-on)
-      const res = await axios.post('http://localhost:5000/api/virtual-try-on', {
+      // 1. Thử gọi Backend API (/api/try-on/virtual-try-on)
+      const res = await axios.post('http://localhost:5000/api/try-on/virtual-try-on', {
         productId: product.id,
         userImageBase64: userImage,
         measurements
@@ -46,7 +46,7 @@ export default function TryOnModal({ product, isOpen, onClose }) {
         return;
       }
     } catch (err) {
-      console.warn('Backend /api/virtual-try-on chưa chạy hoặc đang chạy trên Vercel, tự động kích hoạt Gemini AI Client Engine:', err.message);
+      console.warn('Backend /api/try-on/virtual-try-on chưa chạy hoặc đang chạy trên Vercel, tự động kích hoạt Gemini AI Client Engine:', err.message);
 
       // 2. Tự động kích hoạt Gemini AI Vision Client Engine
       try {
@@ -98,11 +98,26 @@ export default function TryOnModal({ product, isOpen, onClose }) {
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-black text-xl font-bold">✕</button>
         <h2 className="text-xl font-bold mb-4">Phòng Thử Đồ Ảo AI — {product.name}</h2>
 
+        {/* Hướng dẫn chụp ảnh chính diện */}
+        <div className="mb-4 bg-indigo-50 border border-indigo-200 rounded-lg p-3 flex items-start gap-3">
+          <span className="text-2xl">📸</span>
+          <div>
+            <p className="text-sm font-semibold text-indigo-800">Yêu cầu ảnh để AI ghép đồ chuẩn nhất:</p>
+            <ul className="text-xs text-indigo-700 mt-1 space-y-0.5 list-disc list-inside">
+              <li>Chụp <strong>chính diện</strong> — thẳng mặt, thẳng người, nhìn thẳng vào camera</li>
+              <li>Ảnh rõ nét, ánh sáng đủ, nền đơn giản</li>
+              <li>Tốt nhất: ảnh toàn thân hoặc nửa người trên</li>
+              <li>Mặc đồ sát người (áo thun, áo bó) để AI nhận dáng chính xác hơn</li>
+            </ul>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* CỘT TRÁI: Upload ảnh & Nhập số đo */}
           <div className="space-y-4">
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-              <p className="text-sm text-gray-600 mb-2">1. Tải lên ảnh của bạn (rõ dáng người/khuôn mặt)</p>
+            <div className="border-2 border-dashed border-indigo-300 rounded-lg p-4 text-center bg-indigo-50/30">
+              <p className="text-sm font-semibold text-indigo-700 mb-1">1. Ảnh của bạn (chính diện)</p>
+              <p className="text-xs text-gray-500 mb-2">Thẳng mặt • Thẳng người • Rõ nét</p>
               <input type="file" accept="image/*" onChange={handleImageUpload} className="text-sm" />
             </div>
 
