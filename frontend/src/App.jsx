@@ -15,6 +15,7 @@ import CustomerOrders from './components/CustomerOrders';
 import WishlistView from './components/WishlistView';
 import PolicyPage from './components/PolicyPage';
 import { productAPI } from './services/api';
+import { bulkSyncProductsToCloud } from './services/firebase';
 import { DEFAULT_PRODUCT_IMAGE, normalizeProduct, getCleanCustomProducts } from './utils/productUtils';
 import {
   ShoppingBagIcon,
@@ -90,7 +91,11 @@ function MainApp() {
         if (custom.length > 0) {
           const apiIds = new Set(list.map(p => p.id));
           const newCustom = custom.filter(p => !apiIds.has(p.id));
-          list = [...newCustom, ...list];
+          if (newCustom.length > 0) {
+            list = [...newCustom, ...list];
+            // Tự động đẩy sản phẩm cục bộ lên Cloud Firestore để mọi máy khác và điện thoại đều thấy ngay
+            bulkSyncProductsToCloud(newCustom).catch(() => {});
+          }
         }
 
         // Lọc theo danh mục an toàn tuyệt đối

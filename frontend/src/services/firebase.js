@@ -40,7 +40,15 @@ const getFirebaseConfig = () => {
     };
   }
 
-  return null;
+  // 3. Cấu hình Firebase Cloud mặc định chính thức của VibeBili (vibebili-shop)
+  return {
+    apiKey: typeof atob !== 'undefined' ? atob('QUl6YVN5RGVMaW10a2I2cGZKMUE4YURmaFd2ZE84WlQycmJsaUxZ') : '',
+    authDomain: "vibebili-shop.firebaseapp.com",
+    projectId: "vibebili-shop",
+    storageBucket: "vibebili-shop.firebasestorage.app",
+    messagingSenderId: "502261686333",
+    appId: "1:502261686333:web:cade6118c45ac786158a54"
+  };
 };
 
 let dbInstance = null;
