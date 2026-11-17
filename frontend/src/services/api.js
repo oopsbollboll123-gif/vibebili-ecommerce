@@ -1,3 +1,12 @@
+import {
+  fetchCloudProducts,
+  syncProductToCloud,
+  bulkSyncProductsToCloud,
+  deleteProductFromCloud,
+  syncOrderToCloud,
+  fetchCloudOrders
+} from './firebase';
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
 // Hàm chung gửi request HTTP tới Backend có timeout an toàn chống treo UI
@@ -87,9 +96,32 @@ export const authAPI = {
   })
 };
 
-// 2. Phân hệ Sản phẩm & Danh mục (Products & Categories)
+// 2. Phân hệ Sản phẩm & Danh mục (Products & Categories - Hỗ trợ Cloud Database Firestore)
 export const productAPI = {
-  getAll: (params = {}) => {
+  getAll: async (params = {}) => {
+    // 1. Ưu tiên đọc từ Cloud Firestore nếu đã kết nối
+    try {
+      const cloudProds = await fetchCloudProducts();
+      if (cloudProds && cloudProds.length > 0) {
+        let filtered = cloudProds;
+        if (params.category && params.category !== 'all') {
+          const cat = params.category.toLowerCase();
+          filtered = filtered.filter(p => {
+            const cName = (p.category_name || p.category || '').toLowerCase();
+            return cName.includes(cat);
+          });
+        }
+        if (params.search) {
+          const q = params.search.toLowerCase();
+          filtered = filtered.filter(p => (p.name || '').toLowerCase().includes(q));
+        }
+        return { success: true, data: filtered, source: 'cloud' };
+      }
+    } catch (e) {
+      console.warn('[Cloud Firestore]: Chưa sẵn sàng, thử Backend API');
+    }
+
+    // 2. Thử gọi Backend API
     const query = new URLSearchParams();
     if (params.category) query.append('category', params.category);
     if (params.search) query.append('search', params.search);
@@ -98,17 +130,29 @@ export const productAPI = {
     return request(`/products${queryString ? `?${queryString}` : ''}`);
   },
   getById: (id) => request(`/products/${id}`),
-  create: (productData) => request('/products', {
-    method: 'POST',
-    body: JSON.stringify(productData)
-  }),
-  bulkCreate: (items) => request('/products/bulk', {
-    method: 'POST',
-    body: JSON.stringify({ items })
-  }),
-  delete: (id) => request(`/products/${id}`, {
-    method: 'DELETE'
-  }),
+  create: async (productData) => {
+    // Lưu đồng bộ trực tiếp lên Cloud Firestore
+    await syncProductToCloud(productData).catch(() => {});
+    return request('/products', {
+      method: 'POST',
+      body: JSON.stringify(productData)
+    });
+  },
+  bulkCreate: async (items) => {
+    // Lưu hàng loạt lên Cloud Firestore
+    await bulkSyncProductsToCloud(items).catch(() => {});
+    return request('/products/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ items })
+    });
+  },
+  delete: async (id) => {
+    // Xóa trên Cloud Firestore
+    await deleteProductFromCloud(id).catch(() => {});
+    return request(`/products/${id}`, {
+      method: 'DELETE'
+    });
+  },
   getCategories: () => request('/products/categories'),
   updateCategory: (id, data) => request(`/products/categories/${id}`, {
     method: 'PUT',
@@ -121,13 +165,24 @@ export const productAPI = {
   })
 };
 
-// 3. Phân hệ Đơn hàng (Orders & Checkout)
+// 3. Phân hệ Đơn hàng (Orders & Checkout - Hỗ trợ Cloud Firestore)
 export const orderAPI = {
-  createOrder: (orderData) => request('/orders', {
-    method: 'POST',
-    body: JSON.stringify(orderData)
-  }),
-  getAllOrders: () => request('/orders'),
+  createOrder: async (orderData) => {
+    await syncOrderToCloud(orderData).catch(() => {});
+    return request('/orders', {
+      method: 'POST',
+      body: JSON.stringify(orderData)
+    });
+  },
+  getAllOrders: async () => {
+    try {
+      const cloudOrders = await fetchCloudOrders();
+      if (cloudOrders && cloudOrders.length > 0) {
+        return { success: true, data: cloudOrders, source: 'cloud' };
+      }
+    } catch {}
+    return request('/orders');
+  },
   getMyOrders: () => request('/orders/my-orders'),
   updateStatus: (orderId, status) => request(`/orders/${orderId}/status`, {
     method: 'PUT',

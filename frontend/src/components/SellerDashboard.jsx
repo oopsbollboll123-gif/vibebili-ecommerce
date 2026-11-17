@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { productAPI, orderAPI, serviceAPI } from '../services/api';
+import { isCloudDbConfigured, saveFirebaseConfig, bulkSyncProductsToCloud } from '../services/firebase';
 import { DEFAULT_PRODUCT_IMAGE, normalizeProduct, getCleanCustomProducts } from '../utils/productUtils';
 import {
   StoreIcon,
@@ -73,6 +74,12 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
 
   // Danh sách sản phẩm (Tự động chuẩn hóa dữ liệu từ LocalStorage)
   const [products, setProducts] = useState(() => getCleanCustomProducts());
+
+  // Quản lý Cloud Database (Firebase Firestore)
+  const [isCloudConfigModalOpen, setIsCloudConfigModalOpen] = useState(false);
+  const [firebaseConfigInput, setFirebaseConfigInput] = useState('');
+  const [isCloudConnected, setIsCloudConnected] = useState(() => isCloudDbConfigured());
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
 
   // Danh sách đơn hàng (Tự động đồng bộ từ localStorage và API)
   const [orders, setOrders] = useState(() => {
@@ -205,6 +212,73 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
 
     return () => { isMounted = false; };
   }, []);
+
+  // Lưu cấu hình Firebase và kiểm tra kết nối
+  const handleSaveCloudConfig = async (e) => {
+    e.preventDefault();
+    try {
+      let parsedConfig = null;
+      const raw = firebaseConfigInput.trim();
+
+      if (raw.includes('{') && raw.includes('}')) {
+        const jsonStr = raw
+          .replace(/const\s+firebaseConfig\s*=\s*/g, '')
+          .replace(/;/g, '')
+          .replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"$2":')
+          .replace(/'/g, '"');
+        parsedConfig = JSON.parse(jsonStr);
+      } else {
+        parsedConfig = JSON.parse(raw);
+      }
+
+      if (parsedConfig && parsedConfig.projectId) {
+        saveFirebaseConfig(parsedConfig);
+        setIsCloudConnected(true);
+        setIsCloudConfigModalOpen(false);
+        alert('🎉 Kết nối Firebase Firestore thành công! Bây giờ bạn có thể đồng bộ toàn bộ sản phẩm lên Cloud.');
+
+        // Tự động hỏi đồng bộ sản phẩm hiện có
+        if (products.length > 0 && confirm(`Bạn có muốn đẩy ngay ${products.length} sản phẩm hiện có trên máy này lên Cloud để mọi thiết bị khác nhìn thấy không?`)) {
+          handleSyncAllToCloud();
+        }
+      } else {
+        alert('Cấu hình Firebase không hợp lệ, thiếu trường projectId!');
+      }
+    } catch (err) {
+      alert('Lỗi định dạng cấu hình: ' + err.message + '. Vui lòng dán nguyên văn đoạn firebaseConfig từ Firebase Console.');
+    }
+  };
+
+  // Đồng bộ toàn bộ sản phẩm trên máy này lên Cloud
+  const handleSyncAllToCloud = async () => {
+    if (!isCloudDbConfigured()) {
+      setIsCloudConfigModalOpen(true);
+      return;
+    }
+
+    setIsSyncingCloud(true);
+    try {
+      const ok = await bulkSyncProductsToCloud(products);
+      if (ok) {
+        alert(`✅ Đã đồng bộ thành công ${products.length} sản phẩm lên Cloud Database!\nBây giờ bạn mở điện thoại hoặc máy tính khác vào web đều sẽ thấy đầy đủ!`);
+      } else {
+        alert('⚠️ Có lỗi xảy ra khi đẩy sản phẩm lên Cloud. Vui lòng kiểm tra lại quyền Rules trong Firestore (Start in test mode).');
+      }
+    } catch (err) {
+      alert('Lỗi đồng bộ: ' + err.message);
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  };
+
+  // Xuất file JSON backup
+  const handleExportJsonBackup = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(products, null, 2));
+    const dlAnchor = document.createElement('a');
+    dlAnchor.setAttribute("href", dataStr);
+    dlAnchor.setAttribute("download", `vibebili_products_backup_${new Date().toISOString().split('T')[0]}.json`);
+    dlAnchor.click();
+  };
 
   // Xử lý nộp đơn kích hoạt Seller cho khách hàng
   const handleUpgradeSubmit = async (e) => {
@@ -1036,6 +1110,58 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
         {/* --- PHÂN HỆ 1: QUẢN LÝ SẢN PHẨM + BULK UPLOAD + EXPORT --- */}
         {activeTab === 'products' && (
           <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden space-y-4 p-6">
+            
+            {/* Thanh trạng thái Cloud Database (Firebase Firestore) */}
+            <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 border border-blue-200/90 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center space-x-3">
+                <span className="text-2xl">☁️</span>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-gray-900 text-xs">Cơ Sở Dữ Liệu Đám Mây (Cloud Firestore):</span>
+                    {isCloudConnected ? (
+                      <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2.5 py-0.5 rounded-full flex items-center space-x-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>ĐÃ KẾT NỐI (ĐỒNG BỘ MỌI THIẾT BỊ)</span>
+                      </span>
+                    ) : (
+                      <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-2.5 py-0.5 rounded-full">
+                        CHƯA KẾT NỐI (DỮ LIỆU ĐANG LƯU MÁY NÀY)
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-gray-600 mt-0.5">
+                    {isCloudConnected
+                      ? 'Tất cả sản phẩm và đơn hàng tự động hiển thị thời gian thực trên cả máy tính khác và điện thoại.'
+                      : 'Kết nối Firebase Firestore (Miễn phí 100%) để người mua từ mọi thiết bị đều nhìn thấy sản phẩm của bạn!'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={handleSyncAllToCloud}
+                  disabled={isSyncingCloud}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-full transition flex items-center space-x-1 shadow-sm disabled:opacity-50"
+                  title="Đẩy tất cả sản phẩm đang có trên máy này lên Cloud"
+                >
+                  <span>{isSyncingCloud ? '⏳ Đang đồng bộ...' : '🚀 Đẩy Lên Cloud Cho Mọi Máy Thấy'}</span>
+                </button>
+                <button
+                  onClick={() => setIsCloudConfigModalOpen(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-3.5 py-1.5 rounded-full transition flex items-center space-x-1 shadow-sm"
+                >
+                  <span>⚙️ {isCloudConnected ? 'Cài Đặt Cloud' : 'Kết Nối Cloud Firebase'}</span>
+                </button>
+                <button
+                  onClick={handleExportJsonBackup}
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs px-3 py-1.5 rounded-full transition"
+                  title="Tải bản sao lưu toàn bộ sản phẩm dạng file JSON"
+                >
+                  <span>💾 Sao Lưu JSON</span>
+                </button>
+              </div>
+            </div>
+
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-gray-100 pb-4">
               <div>
                 <h2 className="text-base font-black uppercase tracking-wider text-gray-900">
@@ -2130,6 +2256,74 @@ function SellerDashboard({ onNavigateHome, onNavigateAuth, onSelectProduct }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CẤU HÌNH CLOUD DATABASE (FIREBASE FIRESTORE) */}
+      {isCloudConfigModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b pb-3">
+              <div className="flex items-center space-x-2">
+                <span className="text-2xl">☁️</span>
+                <h3 className="font-black text-gray-900 text-base">Cấu Hình Cloud Database (Firebase Firestore)</h3>
+              </div>
+              <button
+                onClick={() => setIsCloudConfigModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl font-bold w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-gray-600 leading-relaxed">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 space-y-1.5">
+                <p className="font-bold text-blue-900">💡 Hướng dẫn 3 bước lấy cấu hình Firebase (Miễn phí 100% vĩnh viễn):</p>
+                <ol className="list-decimal list-inside space-y-1 text-blue-800 text-[11px]">
+                  <li>Truy cập <a href="https://console.firebase.google.com" target="_blank" rel="noreferrer" className="font-bold underline text-blue-950">console.firebase.google.com</a> (Dùng chính Gmail của bạn).</li>
+                  <li>Tạo dự án mới (ví dụ: <code className="bg-blue-100 px-1 rounded">vibebili</code>) ➔ Bấm icon Web <b>&lt;/&gt;</b> để đăng ký app ➔ Copy đoạn mã <code className="bg-blue-100 px-1 rounded">firebaseConfig</code>.</li>
+                  <li>Trong menu trái, vào <b>Build</b> ➔ <b>Firestore Database</b> ➔ Bấm <b>Create database</b> (chọn chế độ <i>Start in test mode</i>).</li>
+                </ol>
+              </div>
+
+              <form onSubmit={handleSaveCloudConfig} className="space-y-3">
+                <div>
+                  <label className="block font-bold text-gray-800 mb-1">
+                    Dán đoạn mã <code className="text-blue-600 font-mono">firebaseConfig</code> vào đây:
+                  </label>
+                  <textarea
+                    rows="7"
+                    value={firebaseConfigInput}
+                    onChange={(e) => setFirebaseConfigInput(e.target.value)}
+                    placeholder={`const firebaseConfig = {\n  apiKey: "AIzaSy...",\n  authDomain: "vibebili.firebaseapp.com",\n  projectId: "vibebili",\n  storageBucket: "vibebili.appspot.com",\n  messagingSenderId: "...",\n  appId: "..."\n};`}
+                    className="w-full font-mono text-[11px] border border-gray-300 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                    required
+                  ></textarea>
+                </div>
+
+                <div className="pt-2 border-t flex justify-between items-center">
+                  <span className="text-[10px] text-gray-400">
+                    Trạng thái hiện tại: {isCloudConnected ? '🟢 Đã kết nối' : '🔴 Chưa kết nối'}
+                  </span>
+                  <div className="flex space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsCloudConfigModalOpen(false)}
+                      className="px-4 py-2 border rounded-full font-bold hover:bg-gray-100 text-xs"
+                    >
+                      Đóng
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-full text-xs transition shadow"
+                    >
+                      💾 Lưu & Kết Nối Ngay
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
