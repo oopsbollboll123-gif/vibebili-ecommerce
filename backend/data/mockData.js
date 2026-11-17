@@ -97,8 +97,55 @@ let categories = [
   { id: 5, name: "Áo Nữ & Croptop", slug: "ao-nu-croptop", count: 42 }
 ];
 
-// Danh sách sản phẩm sàn VibeBili (Đã dọn sạch các sản phẩm mẫu cũ theo yêu cầu người dùng)
-let products = [];
+// Danh sách sản phẩm sàn VibeBili (Đã tích hợp material & size_chart cho cỡ S, M, L)
+let products = [
+  {
+    id: 1,
+    seller_id: 2,
+    category_id: 1,
+    name: "Tóc Giả Nữ Nguyên Đầu Xoăn Sóng Nước 60cm - Sợi Tơ Nhiệt Cao Cấp",
+    slug: "toc-gia-nu-xoan-song-nuoc-60cm",
+    category_name: "Tóc Giả Cao Cấp",
+    material: "Sợi Tơ Lụa Hàn Quốc Chịu Nhiệt Cao Cấp (180°C)",
+    size_chart: {
+      "S": { "name": "Size S", "circumference": "52-54cm", "hair_length": "60cm", "weight": "220g", "suitable_for": "Vòng đầu nhỏ, thiếu nữ" },
+      "M": { "name": "Size M", "circumference": "55-57cm", "hair_length": "60cm", "weight": "240g", "suitable_for": "Kích cỡ chuẩn cho 85% người trưởng thành" },
+      "L": { "name": "Size L", "circumference": "58-60cm", "hair_length": "60cm", "weight": "260g", "suitable_for": "Vòng đầu lớn hoặc tóc thật dày bên trong" }
+    },
+    base_price: 350000,
+    price: 350000,
+    original_price: 500000,
+    main_image: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80",
+    rating: 4.9,
+    sold_count: 1240,
+    is_hot: true,
+    is_combo: false
+  },
+  {
+    id: 3,
+    seller_id: 3,
+    category_id: 2,
+    name: "Áo Croptop Nữ Ôm Sát Y2K Cyberpunk Khóa Kéo Kim Loại",
+    slug: "ao-croptop-y2k-cyberpunk",
+    category_name: "Thời Trang Nữ",
+    material: "Thun gân Cotton 95% + 5% Spandex co giãn 4 chiều mềm mịn, thoáng mát",
+    size_chart: {
+      "S": { "name": "Size S", "bust": "78-84cm", "waist": "60-65cm", "length": "38cm", "height": "150-160cm", "weight": "40-47kg" },
+      "M": { "name": "Size M", "bust": "85-90cm", "waist": "66-71cm", "length": "40cm", "height": "155-165cm", "weight": "48-54kg" },
+      "L": { "name": "Size L", "bust": "91-96cm", "waist": "72-77cm", "length": "42cm", "height": "160-170cm", "weight": "55-62kg" }
+    },
+    base_price: 169000,
+    price: 169000,
+    original_price: 240000,
+    main_image: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=80",
+    rating: 4.7,
+    sold_count: 980,
+    is_hot: true,
+    is_combo: false
+  }
+];
+
+let tryOnHistory = [];
 
 let orders = [
   {
@@ -382,5 +429,6 @@ module.exports = {
   vouchers,
   spaRequests,
   sellerFinances,
-  reviews
+  reviews,
+  tryOnHistory
 };

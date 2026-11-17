@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS Products (
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(255) DEFAULT NULL,
     description TEXT,
+    material VARCHAR(255) DEFAULT NULL,
+    size_chart JSON DEFAULT NULL,
     base_price DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
     original_price DECIMAL(12, 2) DEFAULT NULL,
     main_image VARCHAR(500) DEFAULT NULL,
@@ -212,4 +214,23 @@ CREATE TABLE IF NOT EXISTS AuditLogs (
     INDEX idx_audit_resource (resource_type, resource_id),
     INDEX idx_audit_action (action),
     INDEX idx_audit_created (created_at)
+);
+
+-- 15. Bảng Lịch sử Thử Đồ ẢO AI 2-in-1 (try_on_history)
+CREATE TABLE IF NOT EXISTS try_on_history (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT DEFAULT NULL,
+    avatar_image TEXT NOT NULL,
+    clothing_id INT DEFAULT NULL,
+    wig_id INT DEFAULT NULL,
+    result_image LONGTEXT NOT NULL,
+    measurements JSON DEFAULT NULL,
+    fit_scores JSON DEFAULT NULL,
+    ai_analysis JSON DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES Users(id) ON DELETE SET NULL,
+    FOREIGN KEY (clothing_id) REFERENCES Products(id) ON DELETE SET NULL,
+    FOREIGN KEY (wig_id) REFERENCES Products(id) ON DELETE SET NULL,
+    INDEX idx_tryon_user (user_id),
+    INDEX idx_tryon_created (created_at)
 );
