@@ -65,17 +65,10 @@ const FALLBACK_AVATARS = [
   }
 ];
 
-// Hàm chuyển URL ảnh mẫu có sẵn sang Base64 để Backend xử lý thống nhất
+// Hàm lấy dữ liệu ảnh người mẫu (giữ nguyên nếu là URL để Backend tải trực tiếp, tránh lỗi CORS của trình duyệt)
 const urlToBase64 = async (url) => {
-  if (url.startsWith('data:image')) return url;
-  const response = await fetch(url);
-  const blob = await response.blob();
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
+  if (!url) return '';
+  return url;
 };
 
 function VirtualTryOn({ preselectedClothingId = null, onNavigateCheckout }) {
@@ -244,14 +237,68 @@ function VirtualTryOn({ preselectedClothingId = null, onNavigateCheckout }) {
 
       setTimeout(() => {
         document.getElementById('try-on-result-section')?.scrollIntoView({ behavior: 'smooth' });
-      }, 180000);
+      }, 300);
 
     } catch (err) {
       clearTimeout(step2Timer);
       clearTimeout(step3Timer);
-      setIsGenerating(false);
-      setScanStep(0);
-      alert('⚠️ Lỗi xử lý phòng thử đồ AI: ' + (err.message || 'Không kết nối được tới server AI'));
+      console.warn('Backend Try-on chưa sẵn sàng hoặc gặp lỗi, tự động chuyển sang Gemini AI Vision Client Engine:', err.message);
+
+      try {
+        const sourceImage = customAvatarImage || selectedAvatar?.imageUrl;
+        const clothingImg = selectedClothing.overlayImage || selectedClothing.image || selectedClothing.main_image;
+        
+        const visionData = await analyzeTryOnWithGemini({
+          personImg: sourceImage,
+          clothingImg,
+          clothingData: selectedClothing,
+          measurements
+        });
+
+        const renderedImg = await compositeTryOnLayers({
+          personImgSrc: sourceImage,
+          wigImgSrc: null,
+          clothingImgSrc: clothingImg,
+          clothingData: selectedClothing,
+          geminiVision: visionData
+        });
+
+        const clothPrice = Number(selectedClothing.price || 0);
+        let recSize = 'Size M';
+        const w = Number(measurements.weight) || 50;
+        const c = Number(measurements.bust) || 84;
+        if (w < 48 || c < 82) recSize = 'Size S';
+        else if (w > 58 || c > 89) recSize = 'Size L';
+
+        setTryOnResult({
+          source: 'gemini_client',
+          originalImage: sourceImage,
+          renderedImage: renderedImg || sourceImage,
+          sizeAdvice: {
+            recommended_size: recSize,
+            fit_analysis: (visionData?.feedback && Array.isArray(visionData.feedback))
+              ? visionData.feedback.join(' ')
+              : `Dựa trên số đo và vóc dáng, mẫu trang phục ${selectedClothing.name} phối lên rất vừa vặn và tôn dáng.`,
+            warning: measurements.height > 175 ? 'Bạn có chiều cao tốt, có thể cân nhắc tăng 1 size để mặc thoải mái hơn.' : null
+          },
+          selectedItem: {
+            ...selectedClothing,
+            recommendedSize: recSize
+          },
+          price: clothPrice
+        });
+
+        setIsGenerating(false);
+        setScanStep(0);
+
+        setTimeout(() => {
+          document.getElementById('try-on-result-section')?.scrollIntoView({ behavior: 'smooth' });
+        }, 300);
+      } catch (fallbackErr) {
+        setIsGenerating(false);
+        setScanStep(0);
+        alert('⚠️ Lỗi xử lý phòng thử đồ AI: ' + (fallbackErr.message || 'Không thể tạo bản thử đồ'));
+      }
     }
   };
 
