@@ -70,17 +70,24 @@ function calculateEaseAllowance(userMeasurements, sizeChart) {
 // =========================================================
 exports.virtualTryOn = async (req, res) => {
   try {
-    const { userId, productId, userImageBase64, measurements } = req.body;
+    const { userId, productId, productData, userImageBase64, measurements } = req.body;
 
     if (!userImageBase64 || !productId) {
       return res.status(400).json({ message: 'Thiếu ảnh hoặc productId' });
     }
 
-    // 1. Nén & resize ảnh đầu vào
-    const imgBuffer = Buffer.from(
-      userImageBase64.replace(/^data:image\/\w+;base64,/, ''),
-      'base64'
-    );
+    // 1. Nén & resize ảnh đầu vào (hỗ trợ cả URL người mẫu có sẵn lẫn ảnh upload Base64)
+    let imgBuffer;
+    if (userImageBase64.startsWith('http')) {
+      const imgRes = await axios.get(userImageBase64, { responseType: 'arraybuffer' });
+      imgBuffer = Buffer.from(imgRes.data);
+    } else {
+      imgBuffer = Buffer.from(
+        userImageBase64.replace(/^data:image\/\w+;base64,/, ''),
+        'base64'
+      );
+    }
+
     const optimizedBuffer = await sharp(imgBuffer)
       .resize({ width: 768, withoutEnlargement: true })
       .jpeg({ quality: 80 })
@@ -107,7 +114,7 @@ exports.virtualTryOn = async (req, res) => {
       console.warn('MySQL cache check failed (non-fatal):', dbErr.message);
     }
 
-    // 3. Lấy thông tin sản phẩm từ MySQL
+    // 3. Lấy thông tin sản phẩm từ MySQL (hoặc dùng productData từ Frontend gửi kèm)
     let product = null;
     try {
       const [products] = await db.query(
@@ -119,6 +126,15 @@ exports.virtualTryOn = async (req, res) => {
       }
     } catch (dbErr) {
       console.warn('MySQL product fetch failed (non-fatal):', dbErr.message);
+    }
+
+    if (!product && productData) {
+      product = {
+        name: productData.name || 'Trang phục thời trang',
+        image_url: productData.overlayImage || productData.image_url || productData.rawProduct?.main_image,
+        size_chart: productData.rawProduct?.size_chart || null,
+        material: productData.rawProduct?.material || 'Cotton thoáng mát'
+      };
     }
 
     if (!product) {
@@ -154,12 +170,15 @@ exports.virtualTryOn = async (req, res) => {
     }, { timeout: 120000 }); // IDM-VTON có thể mất đến 2 phút
 
     let sizeAdvicePromise = Promise.resolve(null);
-    if (measurements && parsedSizeChart) {
-      const easeData = calculateEaseAllowance(measurements, parsedSizeChart);
+    if (measurements) {
+      const easeSection = parsedSizeChart
+        ? `Độ dư (Ease Allowance = Áo - Người) theo từng size: ${JSON.stringify(calculateEaseAllowance(measurements, parsedSizeChart))}.`
+        : `Sản phẩm dùng bảng size chuẩn Việt Nam (S, M, L, XL).`;
+
       const prompt = `Bạn là chuyên gia tư vấn thời trang của sàn thương mại điện tử VibeBili.
 Sản phẩm: ${product.name} | Chất liệu: ${product.material || 'không rõ'}.
 Số đo khách hàng (cm/kg): ${JSON.stringify(measurements)}.
-Độ dư (Ease Allowance = Áo - Người) theo từng size: ${JSON.stringify(easeData)}.
+${easeSection}
 Hãy phân tích độ vừa vặn tại ngực, vai, eo dựa trên độ co giãn của chất liệu và đề xuất 1 size chuẩn nhất.
 Trả về đúng định dạng JSON: {"recommended_size": "...", "fit_analysis": "...", "warning": "..."}`;
 
@@ -191,10 +210,11 @@ Trả về đúng định dạng JSON: {"recommended_size": "...", "fit_analysis
     });
 
   } catch (error) {
-    console.error('Lỗi Virtual Try-On:', error);
+    const detailError = error.response?.data?.detail || error.response?.data?.message || error.message;
+    console.error('Lỗi Virtual Try-On:', detailError);
     res.status(500).json({
       message: 'Lỗi xử lý phòng thử đồ AI',
-      error: error.message
+      error: detailError
     });
   }
 };

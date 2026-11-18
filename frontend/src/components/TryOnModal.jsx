@@ -39,7 +39,7 @@ export default function TryOnModal({ product, isOpen, onClose }) {
         productId: product.id,
         userImageBase64: userImage,
         measurements
-      }, { timeout: 6000 });
+      }, { timeout: 120000 });
 
       if (res && res.data) {
         setResult(res.data);

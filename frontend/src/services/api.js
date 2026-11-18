@@ -11,7 +11,8 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000
 
 // Hàm chung gửi request HTTP tới Backend có timeout an toàn chống treo UI
 const request = async (endpoint, options = {}) => {
-  const timeoutMs = options.timeout || (endpoint.includes('/try-on') ? 25000 : 8000);
+  const isTryOn = endpoint.includes('try-on') || endpoint.includes('tryon');
+  const timeoutMs = options.timeout || (isTryOn ? 180000 : 8000);
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -35,7 +36,7 @@ const request = async (endpoint, options = {}) => {
     clearTimeout(timeoutId);
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.message || 'Lỗi xử lý từ máy chủ API');
+      throw new Error(data.error ? `${data.message}: ${data.error}` : (data.message || 'Lỗi xử lý từ máy chủ API'));
     }
     return data;
   } catch (error) {
@@ -218,10 +219,9 @@ export const orderAPI = {
   })
 };
 
-// 4. Phân hệ AI 2-in-1 Virtual Try-On (Thử đồng thời Quần áo & Tóc giả)
+// 4. Phân hệ AI Virtual Try-On 2D (IDM-VTON + Gemini Size Advisor)
 export const tryOnAPI = {
-  getPresets: () => request('/try-on/presets'),
-  generateTryOn: (payload) => request('/try-on/generate', {
+  virtualTryOn: (payload) => request('/try-on/virtual-try-on', {
     method: 'POST',
     body: JSON.stringify(payload)
   }),

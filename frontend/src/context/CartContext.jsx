@@ -258,6 +258,7 @@ export const CartProvider = ({ children }) => {
         cartItems,
         totalCount,
         subtotal,
+        baseShippingFee,
         shippingFee: baseShippingFee,
         finalShippingFee,
         voucherDiscount,

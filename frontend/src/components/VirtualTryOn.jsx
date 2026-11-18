@@ -1,26 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCart } from '../context/CartContext';
 import { tryOnAPI, productAPI } from '../services/api';
-import { analyzeTryOnWithGemini } from '../services/geminiVisionService';
-import { getCleanCustomProducts, DEFAULT_PRODUCT_IMAGE, isValidImageUrl } from '../utils/productUtils';
-import { compositeTryOnLayers } from '../utils/tryOnCompositor';
+import { getCleanCustomProducts, DEFAULT_PRODUCT_IMAGE } from '../utils/productUtils';
 import {
   SparklesIcon,
   CheckIcon,
   ShoppingBagIcon,
   LightningIcon,
-  UserIcon,
-  ShieldCheckIcon,
-  StarIcon,
-  FireIcon,
-  SearchIcon,
-  ArrowLeftIcon
+  UserIcon
 } from './Icons';
-
-// ========================================================
-// PHÒNG THỬ ĐỒ ẢO AI 2-IN-1 (VIRTUAL TRY-ON) — VIBEBILI.VN
-// Tích hợp: AI Styling Analysis + Canvas AI Compositor + Kết nối sản phẩm thật
-// ========================================================
 
 const FALLBACK_AVATARS = [
   {
@@ -34,8 +22,7 @@ const FALLBACK_AVATARS = [
     bust: 86,
     waist: 62,
     hips: 90,
-    imageUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80",
-    description: "Tỷ lệ cơ thể chuẩn, phù hợp thử mọi mẫu tóc xoăn sóng và đầm ôm body."
+    imageUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80"
   },
   {
     id: "avatar-2",
@@ -48,8 +35,7 @@ const FALLBACK_AVATARS = [
     bust: 82,
     waist: 64,
     hips: 92,
-    imageUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=800&q=80",
-    description: "Phù hợp kiểu tóc Bob cụp ôm sát tôn góc cằm và áo croptop Y2K."
+    imageUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=800&q=80"
   },
   {
     id: "avatar-3",
@@ -62,8 +48,7 @@ const FALLBACK_AVATARS = [
     bust: 80,
     waist: 60,
     hips: 87,
-    imageUrl: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=800&q=80",
-    description: "Phù hợp phong cách Dark Academia, tóc layer dài và đầm xẻ tà sang trọng."
+    imageUrl: "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=800&q=80"
   },
   {
     id: "avatar-4",
@@ -76,142 +61,58 @@ const FALLBACK_AVATARS = [
     bust: 88,
     waist: 65,
     hips: 88,
-    imageUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=800&q=80",
-    description: "Phù hợp trang phục cổ yếm, áo thun retro và tóc dài tỉa layer phồng tự nhiên."
+    imageUrl: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=800&q=80"
   }
 ];
 
-// Danh sách Tóc Giả Cao Cấp chuẩn mực sẵn sàng cho phòng thử đồ AI (Luôn có sẵn)
-const FALLBACK_WIGS = [
-  {
-    id: "wig-default-1",
-    name: "Tóc Giả Xoăn Sóng Nước 60cm — Sợi Tơ Lụa Hàn Quốc",
-    fiber: "Korean Synthetic Silk (Chịu nhiệt 180°C)",
-    hairLength: "60cm",
-    color: "Nâu Sô-cô-la",
-    capSize: "Size M (55 - 57cm)",
-    price: 350000,
-    overlayImage: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80"
-  },
-  {
-    id: "wig-default-2",
-    name: "Tóc Giả Bob Ngắn Hàn Quốc 30cm — 100% Tóc Thật",
-    fiber: "100% Virgin Human Hair (Tóc thật 100%)",
-    hairLength: "30cm",
-    color: "Đen Tự Nhiên",
-    capSize: "Size S (52 - 54cm)",
-    price: 680000,
-    overlayImage: "https://images.unsplash.com/photo-1595476108010-b4d1f102b1b1?auto=format&fit=crop&w=800&q=80"
-  },
-  {
-    id: "wig-default-3",
-    name: "Tóc Giả Layer Buông Lơi Tự Nhiên — Khói Xám Cyber",
-    fiber: "Korean Synthetic Silk (Chịu nhiệt 180°C)",
-    hairLength: "55cm",
-    color: "Xám Khói Ombre",
-    capSize: "Size M (55 - 57cm)",
-    price: 390000,
-    overlayImage: "https://images.unsplash.com/photo-1519699047748-de8e457a634e?auto=format&fit=crop&w=800&q=80"
-  },
-  {
-    id: "wig-default-4",
-    name: "Tóc Giả Thẳng Dài Mái Thưa Tự Nhiên 65cm",
-    fiber: "Tơ nhân tạo cao cấp chịu nhiệt",
-    hairLength: "65cm",
-    color: "Nâu Hạt Dẻ",
-    capSize: "Size M (55 - 57cm)",
-    price: 320000,
-    overlayImage: "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80"
-  },
-  {
-    id: "wig-default-5",
-    name: "Tóc Kẹp Phím Nối Dài 60cm — Vàng Tây Sang Trọng (100% Tóc Thật)",
-    fiber: "100% Virgin Human Hair (Tóc thật 100%)",
-    hairLength: "60cm",
-    color: "Vàng Tây Sang Trọng",
-    capSize: "Combo 3 Phím Kẹp",
-    price: 450000,
-    overlayImage: "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80"
-  },
-  {
-    id: "wig-default-6",
-    name: "Tóc Kẹp Phím Nối Dài 60cm — Nâu Sô-cô-la Bồng Bềnh",
-    fiber: "Korean Synthetic Silk (Chịu nhiệt 180°C)",
-    hairLength: "60cm",
-    color: "Nâu Sô-cô-la",
-    capSize: "Combo 3 Phím Kẹp",
-    price: 380000,
-    overlayImage: "https://images.unsplash.com/photo-1519699047748-de8e457a634e?auto=format&fit=crop&w=800&q=80"
-  }
-];
-
-// Tùy chọn giữ nguyên mái tóc thật của khách hàng (Dành cho khách chỉ muốn thử quần áo)
-const NATURAL_HAIR_OPTION = {
-  id: "wig-natural",
-  name: "Giữ Nguyên Tóc Thật (Không Đổi Tóc)",
-  fiber: "Tóc tự nhiên của bạn",
-  hairLength: "Nguyên bản",
-  color: "Tự Nhiên",
-  capSize: "Tiêu chuẩn",
-  price: 0,
-  overlayImage: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=800&q=80"
+// Hàm chuyển URL ảnh mẫu có sẵn sang Base64 để Backend xử lý thống nhất
+const urlToBase64 = async (url) => {
+  if (url.startsWith('data:image')) return url;
+  const response = await fetch(url);
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 };
 
-function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, onNavigateCheckout }) {
+function VirtualTryOn({ preselectedClothingId = null, onNavigateCheckout }) {
   const { addToCart } = useCart();
-  const canvasRef = useRef(null);
 
-  // Danh sách Người mẫu & Sản phẩm thực tế trên sàn
-  const [avatars, setAvatars] = useState(FALLBACK_AVATARS);
-  const [wigs, setWigs] = useState([]);
+  const [avatars] = useState(FALLBACK_AVATARS);
   const [clothes, setClothes] = useState([]);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
 
-  // Bộ lọc & Tìm kiếm trong phòng thử đồ
-  const [wigSearch, setWigSearch] = useState('');
   const [clothingSearch, setClothingSearch] = useState('');
   const [clothingCategoryFilter, setClothingCategoryFilter] = useState('all');
 
-  // Lựa chọn hiện tại
   const [selectedAvatar, setSelectedAvatar] = useState(FALLBACK_AVATARS[0]);
   const [customAvatarImage, setCustomAvatarImage] = useState(null);
-  const [selectedWig, setSelectedWig] = useState(NATURAL_HAIR_OPTION);
   const [selectedClothing, setSelectedClothing] = useState(null);
 
-  // Số đo cơ thể (Smart Body Measurements)
+  // Số đo cơ thể gửi sang Gemini tính Ease Allowance
   const [measurements, setMeasurements] = useState({
     height: 165,
     weight: 49,
-    bust: 86,
-    waist: 62,
-    hips: 90
+    chest: 86,
+    shoulder: 38,
+    waist: 62
   });
 
-  // State xử lý AI Try-On
   const [isGenerating, setIsGenerating] = useState(false);
-  const [scanStep, setScanStep] = useState(0); // 0: Idle, 1: Face Landmarking, 2: Body Shaping, 3: Canvas AI Render
+  const [scanStep, setScanStep] = useState(0);
   const [tryOnResult, setTryOnResult] = useState(null);
-
-  // Thanh trượt Before / After Slider (0% -> 100%)
   const [sliderPosition, setSliderPosition] = useState(50);
 
-  // Bộ tinh chỉnh vị trí & kích cỡ thủ công (Fine-tune Transforms cho độ chính xác 99%)
-  const [wigTransform, setWigTransform] = useState({ x: 0, y: 0, scale: 1.0 });
-  const [clothingTransform, setClothingTransform] = useState({ x: 0, y: 0, scale: 1.0 });
-  const [geminiVision, setGeminiVision] = useState(null); // Mốc thị giác giải phẫu học từ Gemini 3.5 Flash
-  const [showTransformControls, setShowTransformControls] = useState(false);
-  const [activeAdjustTab, setActiveAdjustTab] = useState('wig'); // 'wig' | 'clothing'
-  const [isRecompositing, setIsRecompositing] = useState(false);
-
-  // 1. KẾT NỐI SẢN PHẨM THỰC TẾ TRÊN SÀN (Backend + LocalStorage Custom Products)
+  // Tải danh sách sản phẩm trang phục từ Backend / Local
   useEffect(() => {
     let isMounted = true;
     setLoadingCatalog(true);
 
     const loadAllProducts = async () => {
       let rawList = [];
-
-      // A. Lấy từ backend API
       try {
         const res = await productAPI.getAll();
         if (res && res.success && Array.isArray(res.data)) {
@@ -221,7 +122,6 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
         console.warn('Backend products offline, nạp kho đồ cục bộ');
       }
 
-      // B. Kết hợp với các sản phẩm Seller đã upload qua CSV
       const customProducts = getCleanCustomProducts();
       if (customProducts.length > 0) {
         const existingIds = new Set(rawList.map(p => p.id));
@@ -229,36 +129,18 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
         rawList = [...newCustoms, ...rawList];
       }
 
-      // C. Phân loại thành Wigs (Tóc Giả) & Clothes (Trang Phục Thời Trang)
-      const wigList = [];
       const clothList = [];
-
       rawList.forEach((p) => {
         const cat = (p.category_name || p.category || '').toLowerCase();
         const name = (p.name || '').toLowerCase();
-        const img = p.main_image || p.image || p.link_anh || DEFAULT_PRODUCT_IMAGE;
-
+        const img = p.main_image || p.image || p.image_url || p.link_anh || DEFAULT_PRODUCT_IMAGE;
         const isWig = cat.includes('tóc') || cat.includes('wig') || name.includes('tóc') || p.category_id === 1;
 
-        if (isWig) {
-          wigList.push({
-            id: p.id,
-            name: p.name,
-            fiber: p.fiberType || (name.includes('thật') ? '100% Virgin Human Hair' : 'Korean Synthetic Silk'),
-            hairLength: p.hairLength || '55cm',
-            color: p.color || 'Nâu Tự Nhiên',
-            capSize: p.sizes?.[0] || 'Size M (55-57cm)',
-            price: Number(p.price || 350000),
-            overlayImage: img,
-            rawProduct: p
-          });
-        } else {
+        if (!isWig) {
           clothList.push({
             id: p.id,
             name: p.name,
-            category: p.category_name || p.category || 'Thời Trang Nữ',
-            style: cat.includes('nam') ? 'Nam Tính' : (name.includes('y2k') ? 'Y2K Streetwear' : 'Hàn Quốc Chic'),
-            fitType: name.includes('oversize') ? 'Oversized fit' : 'Slim fit',
+            category: p.category_name || p.category || 'Thời Trang',
             color: p.color || 'Mặc định',
             price: Number(p.price || 250000),
             recommendedSize: p.sizes?.[0] || 'Size M',
@@ -269,41 +151,33 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
       });
 
       if (!isMounted) return;
-
-      // Nếu kho tóc giả chưa có sản phẩm nào do seller chưa upload tóc, luôn nạp FALLBACK_WIGS
-      const finalWigList = wigList.length > 0 
-        ? [NATURAL_HAIR_OPTION, ...wigList] 
-        : [NATURAL_HAIR_OPTION, ...FALLBACK_WIGS];
-
-      const finalClothList = clothList.length > 0 ? clothList : [];
-
-      setWigs(finalWigList);
-      setClothes(finalClothList);
+      setClothes(clothList);
       setLoadingCatalog(false);
 
-      // Tự động chọn sản phẩm nếu được truyền từ trang Chi Tiết Sản Phẩm (Ý 2)
-      if (preselectedWigId) {
-        const foundWig = finalWigList.find(w => String(w.id) === String(preselectedWigId));
-        setSelectedWig(foundWig || finalWigList[1] || finalWigList[0]);
-      } else {
-        // Mặc định giữ nguyên mái tóc thật tự nhiên của khách hàng
-        setSelectedWig(NATURAL_HAIR_OPTION);
-      }
-
       if (preselectedClothingId) {
-        const foundCloth = finalClothList.find(c => String(c.id) === String(preselectedClothingId));
-        setSelectedClothing(foundCloth || finalClothList[0] || null);
-      } else if (finalClothList.length > 0) {
-        setSelectedClothing(finalClothList[0]);
+        const foundCloth = clothList.find(c => String(c.id) === String(preselectedClothingId));
+        setSelectedClothing(foundCloth || clothList[0] || null);
+      } else if (clothList.length > 0) {
+        setSelectedClothing(clothList[0]);
       }
     };
 
     loadAllProducts();
-
     return () => { isMounted = false; };
-  }, [preselectedWigId, preselectedClothingId]);
+  }, [preselectedClothingId]);
 
-  // Xử lý upload ảnh chân dung cá nhân từ máy tính / điện thoại
+  const handleSelectAvatar = (av) => {
+    setSelectedAvatar(av);
+    setCustomAvatarImage(null);
+    setMeasurements(prev => ({
+      ...prev,
+      height: av.height,
+      weight: av.weight,
+      chest: av.bust,
+      waist: av.waist
+    }));
+  };
+
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -319,238 +193,90 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
     }
   };
 
-  // 2. CÔNG NGHỆ TÁCH NỀN VÀ GHÉP LỚP THỜI TRANG ĐA TẦNG (Smart AI Compositor)
-  const executeComposite = async (currentWigTransform, currentClothingTransform, visionData = null) => {
-    const sourceImage = customAvatarImage || selectedAvatar?.imageUrl;
-    const wigSrc = (selectedWig && selectedWig.id !== 'wig-natural') ? selectedWig.overlayImage : null;
-    const clothSrc = selectedClothing ? selectedClothing.overlayImage : null;
-
-    return await compositeTryOnLayers({
-      personImgSrc: sourceImage,
-      wigImgSrc: wigSrc,
-      clothingImgSrc: clothSrc,
-      wigData: selectedWig,
-      clothingData: selectedClothing,
-      geminiVision: visionData || geminiVision,
-      wigTransform: currentWigTransform || wigTransform,
-      clothingTransform: currentClothingTransform || clothingTransform,
-      showBranding: true
-    });
-  };
-
-  // Cập nhật tinh chỉnh trực tiếp (Real-time Fine-Tuning)
-  const handleUpdateTransform = async (layerType, field, value) => {
-    const numVal = parseFloat(value);
-    let newWig = { ...wigTransform };
-    let newCloth = { ...clothingTransform };
-
-    if (layerType === 'wig') {
-      newWig[field] = numVal;
-      setWigTransform(newWig);
-    } else {
-      newCloth[field] = numVal;
-      setClothingTransform(newCloth);
-    }
-
-    if (tryOnResult && tryOnResult.originalImage) {
-      try {
-        setIsRecompositing(true);
-        const updatedImg = await executeComposite(newWig, newCloth, geminiVision);
-        setTryOnResult(prev => ({
-          ...prev,
-          renderedImage: updatedImg
-        }));
-      } catch (err) {
-        console.warn('Lỗi re-composite:', err);
-      } finally {
-        setIsRecompositing(false);
-      }
-    }
-  };
-
-  // Đặt lại tọa độ mặc định
-  const handleResetTransforms = async () => {
-    const defWig = { x: 0, y: 0, scale: 1.0 };
-    const defCloth = { x: 0, y: 0, scale: 1.0 };
-    setWigTransform(defWig);
-    setClothingTransform(defCloth);
-
-    if (tryOnResult && tryOnResult.originalImage) {
-      try {
-        setIsRecompositing(true);
-        const updatedImg = await executeComposite(defWig, defCloth, geminiVision);
-        setTryOnResult(prev => ({
-          ...prev,
-          renderedImage: updatedImg
-        }));
-      } catch (err) {
-        console.warn('Lỗi reset composite:', err);
-      } finally {
-        setIsRecompositing(false);
-      }
-    }
-  };
-
-  // 3. KÍCH HOẠT THỬ ĐỒ AI (Tách nền tóc & áo, xóa đồ cũ và mặc đồ mới theo Gemini AI)
+  // GỌI TRỰC TIẾP API BACKEND MỚI (/api/try-on/virtual-try-on -> Python IDM-VTON + Gemini Size)
   const handleRunTryOn = async () => {
-    if (!selectedWig && !selectedClothing) {
-      alert('Vui lòng chọn ít nhất 1 mẫu tóc giả hoặc 1 mẫu trang phục để bắt đầu thử đồ!');
+    if (!selectedClothing) {
+      alert('Vui lòng chọn 1 mẫu trang phục để bắt đầu thử đồ!');
       return;
     }
 
     setIsGenerating(true);
     setTryOnResult(null);
+    setScanStep(1);
 
-    // Hiệu ứng scan tuần tự mô phỏng nhận diện AI đa tầng
-    setScanStep(1); // 1. Tách nền áo và nhận diện phom dáng
-    setTimeout(() => { setScanStep(2); }, 700); // 2. Gemini Multimodal Vision phân tích mốc giải phẫu & bờ vai
-    setTimeout(() => { setScanStep(3); }, 1500); // 3. Xóa trang phục cũ, mặc trang phục mới và căn cúp khung hình
+    const step2Timer = setTimeout(() => setScanStep(2), 2500);
+    const step3Timer = setTimeout(() => setScanStep(3), 6000);
 
     try {
       const sourceImage = customAvatarImage || selectedAvatar?.imageUrl;
-      const clothSrc = selectedClothing ? selectedClothing.overlayImage : null;
+      const userImageBase64 = await urlToBase64(sourceImage);
 
-      // A. GỌI GEMINI 3.5 FLASH MULTIMODAL VISION ĐỂ PHÂN TÍCH GIẢI PHẪU
-      let visionData = null;
-      let resData = null;
+      const savedUser = JSON.parse(localStorage.getItem('vibebili_user') || 'null');
 
-      try {
-        const payload = {
-          avatarId: customAvatarImage ? 'custom-user' : selectedAvatar?.id,
-          avatarImage: sourceImage,
-          measurements,
-          wigId: selectedWig?.id || 1,
-          clothingId: selectedClothing?.id || 101,
-          wigData: selectedWig,
-          clothingData: selectedClothing
-        };
-        const res = await tryOnAPI.generateTryOn(payload);
-        if (res && res.success && res.data) {
-          resData = res.data;
-          if (res.data.geminiVision) {
-            visionData = res.data.geminiVision;
-          }
-        }
-      } catch (apiErr) {
-        console.warn('Backend API try-on không phản hồi, tự động kích hoạt Gemini Vision Client:', apiErr.message);
-      }
+      const response = await tryOnAPI.virtualTryOn({
+        userId: savedUser?.id || null,
+        productId: selectedClothing.id,
+        productData: selectedClothing,
+        userImageBase64,
+        measurements
+      });
 
-      // Khi chạy trực tiếp trên Vercel hoặc backend offline, kích hoạt trực tiếp Gemini Vision Client
-      if (!visionData && clothSrc) {
-        try {
-          visionData = await analyzeTryOnWithGemini({
-            personImg: sourceImage,
-            clothingImg: clothSrc,
-            clothingData: selectedClothing,
-            measurements
-          });
-        } catch (vErr) {
-          console.warn('Lỗi phân tích Gemini Vision trực tiếp:', vErr);
-        }
-      }
+      clearTimeout(step2Timer);
+      clearTimeout(step3Timer);
 
-      setGeminiVision(visionData);
+      const clothPrice = Number(selectedClothing.price || 0);
+      const recommendedSize = response.sizeAdvice?.recommended_size || selectedClothing.recommendedSize || 'Size M';
 
-      // B. MẶC ÁO MỚI, XÓA ÁO CŨ VÀ CẮT KHUNG HÌNH THEO MỐC GEMINI AI
-      const renderedImg = await executeComposite(wigTransform, clothingTransform, visionData);
-
-      // C. Xử lý giá tiền và ưu đãi combo
-      const wigPrice = Number(selectedWig?.price || 0);
-      const clothPrice = Number(selectedClothing?.price || 0);
-      const totalOriginal = wigPrice + clothPrice;
-      const isComboLook = Boolean(selectedWig && selectedWig.id !== 'wig-natural' && selectedClothing);
-      const comboPrice = isComboLook ? Math.round(totalOriginal * 0.85) : totalOriginal;
-
-      const stylingFeedback = visionData?.feedback || visionData?.stylingAdvice || resData?.stylingAnalysis || [
-        `✓ AI đã nhận diện mốc bờ vai và viền cổ, tự động xóa trang phục cũ và mặc [${selectedClothing?.name || 'Áo mới'}] vừa khít giải phẫu học.`,
-        `✓ Bảo toàn từng đường xếp nếp, thớ vải thật và tạo bóng đổ 3D ôm sát cơ thể tự nhiên.`,
-        `✓ Ánh sáng và độ đổ bóng được cân bằng hoàn hảo theo góc chụp.`
-      ];
-
-      const stylistTip = visionData?.stylistTip || resData?.stylistTip || `💡 Gợi ý Stylist: Chiếc áo này có phom dáng rất tôn eo và bờ vai của bạn.`;
-
-      const finalResult = {
-        tryOnId: resData?.tryOnId || 'TRYON-' + Date.now(),
+      setTryOnResult({
+        source: response.source || 'ai_generated',
         originalImage: sourceImage,
-        renderedImage: renderedImg || sourceImage,
-        scores: visionData?.scores || resData?.scores || {
-          overallFitScore: 96,
-          faceHarmonization: 97,
-          bodyProportion: 95
+        renderedImage: response.resultImageUrl,
+        sizeAdvice: response.sizeAdvice,
+        selectedItem: {
+          ...selectedClothing,
+          recommendedSize
         },
-        bodyAnalysis: resData?.bodyAnalysis || {
-          bodyShapeType: selectedAvatar?.bodyShape || 'Đồng hồ cát cân đối',
-          recommendedClothingSize: 'Size M chuẩn dáng',
-          recommendedCapSize: 'Size M (55 - 57cm)'
-        },
-        feedback: stylingFeedback,
-        stylistTip: stylistTip,
-        selectedItems: {
-          wig: selectedWig || NATURAL_HAIR_OPTION,
-          clothing: selectedClothing || { name: 'Trang phục tự nhiên', price: 0 }
-        },
-        comboPromotion: {
-          originalPrice: totalOriginal,
-          comboPrice: comboPrice,
-          savedAmount: totalOriginal - comboPrice,
-          discountPercentage: isComboLook ? 15 : 0,
-          freeGifts: [
-            '01 Lược gỡ rối đệm khí chống tĩnh điện chuyên dụng',
-            '02 Lưới trùm tóc dệt kim co giãn cao cấp',
-            '01 Hộp carton VibeBili bảo quản chống bụi'
-          ]
-        }
-      };
+        price: clothPrice
+      });
 
-      setTimeout(() => {
-        setIsGenerating(false);
-        setScanStep(0);
-        setTryOnResult(finalResult);
-
-        // Cuộn mượt đến kết quả
-        setTimeout(() => {
-          document.getElementById('try-on-result-section')?.scrollIntoView({ behavior: 'smooth' });
-        }, 150);
-      }, 1800);
-
-    } catch (err) {
       setIsGenerating(false);
       setScanStep(0);
-      alert('⚠️ Có lỗi trong quá trình thử đồ: ' + err.message);
+
+      setTimeout(() => {
+        document.getElementById('try-on-result-section')?.scrollIntoView({ behavior: 'smooth' });
+      }, 180000);
+
+    } catch (err) {
+      clearTimeout(step2Timer);
+      clearTimeout(step3Timer);
+      setIsGenerating(false);
+      setScanStep(0);
+      alert('⚠️ Lỗi xử lý phòng thử đồ AI: ' + (err.message || 'Không kết nối được tới server AI'));
     }
   };
 
-  // Thêm trọn bộ Combo vừa thử vào giỏ hàng (Giảm 15% + Quà tặng)
-  const handleAddComboToCart = () => {
+  const handleAddProductToCart = () => {
     if (!tryOnResult) return;
+    const item = tryOnResult.selectedItem;
 
-    const { wig, clothing } = tryOnResult.selectedItems;
-    const promo = tryOnResult.comboPromotion;
+    addToCart(
+      item.rawProduct || {
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        main_image: item.overlayImage,
+        category: item.category
+      },
+      { id: 'AI-TRYON-' + Date.now(), title: 'Sản phẩm từ Phòng Thử Đồ AI' },
+      1,
+      {
+        color: item.color,
+        size: item.recommendedSize
+      }
+    );
 
-    const comboItem = {
-      id: Date.now(),
-      name: `Combo AI Look: ${clothing.name} x ${wig.name}`,
-      price: promo.comboPrice,
-      original_price: promo.originalPrice,
-      main_image: tryOnResult.renderedImage,
-      category: 'Outfit x Hairstyle Combo',
-      is_combo: true
-    };
-
-    addToCart(comboItem, { id: 'AI-COMBO-' + Date.now(), title: 'Set Thử Đồ AI 2-in-1' }, 1, {
-      color: `${wig.color} / ${clothing.color}`,
-      size: `${wig.capSize} + ${clothing.recommendedSize}`,
-      length: wig.hairLength
-    });
-
-    alert('🎉 Đã thêm trọn bộ Combo vào giỏ hàng với giá ưu đãi giảm 15%!');
+    alert(`🎉 Đã thêm "${item.name}" (${item.recommendedSize}) vào giỏ hàng!`);
   };
-
-  // Lọc sản phẩm theo tìm kiếm
-  const filteredWigs = wigs.filter(w =>
-    w.name.toLowerCase().includes(wigSearch.toLowerCase()) ||
-    w.color.toLowerCase().includes(wigSearch.toLowerCase())
-  );
 
   const filteredClothes = clothes.filter(c => {
     const matchSearch = c.name.toLowerCase().includes(clothingSearch.toLowerCase()) ||
@@ -565,24 +291,23 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
   return (
     <div className="max-w-7xl mx-auto px-4 py-8 text-gray-900 font-sans">
       
-      {/* 1. Header Giới thiệu tính năng */}
+      {/* Header */}
       <div className="text-center max-w-3xl mx-auto mb-10 space-y-3">
         <span className="inline-flex items-center space-x-1.5 bg-gradient-to-r from-orange-600 to-pink-600 text-white text-[11px] font-black uppercase px-4 py-1.5 rounded-full tracking-wider shadow-md">
           <SparklesIcon className="w-3.5 h-3.5 text-white animate-spin" />
-          <span>Công Nghệ AI Thử Đồ 2-in-1 Độc Quyền</span>
+          <span>Công Nghệ AI Thử Đồ 2D & Tư Vấn Size</span>
         </span>
         <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tight text-gray-950">
           Phòng Thử Đồ Ảo AI
         </h1>
         <p className="text-xs md:text-sm text-gray-600 leading-relaxed">
-          Thử đồng thời <strong className="text-gray-900">Tóc Giả Cao Cấp & Trang Phục</strong> trên cùng một diện mạo. 
-          AI tự động căn chỉnh mốc khuôn mặt, phân tích vóc dáng và gợi ý size đồ chuẩn xác nhất trước khi mua!
+          Tải ảnh chính diện của bạn lên, AI <strong className="text-gray-900">IDM-VTON</strong> sẽ tự động mặc thử trang phục thực tế và <strong className="text-gray-900">Gemini AI</strong> sẽ tính toán độ dư vải để gợi ý size chuẩn xác nhất!
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* CỘT TRÁI (5 phần): Bước 1 - Thiết lập Avatar & Số đo */}
+        {/* CỘT TRÁI (5 phần): Bước 1 - Chọn Avatar & Số đo */}
         <div className="lg:col-span-5 space-y-6">
           <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-sm space-y-5">
             <div className="flex items-center justify-between border-b pb-3">
@@ -590,10 +315,9 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
                 <UserIcon className="w-4 h-4 text-orange-600" />
                 <span>Bước 1: Chọn Avatar Hoặc Tải Ảnh Của Bạn</span>
               </h2>
-              <span className="text-[10px] bg-orange-100 text-orange-800 font-bold px-2 py-0.5 rounded-full uppercase">Ảnh 1:1</span>
+              <span className="text-[10px] bg-orange-100 text-orange-800 font-bold px-2 py-0.5 rounded-full uppercase">Chính diện</span>
             </div>
 
-            {/* Chọn Avatar mẫu */}
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-2">
                 A. Chọn Người Mẫu AI Chuẩn Dáng:
@@ -602,7 +326,7 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
                 {avatars.map((av) => (
                   <div
                     key={av.id}
-                    onClick={() => { setSelectedAvatar(av); setCustomAvatarImage(null); }}
+                    onClick={() => handleSelectAvatar(av)}
                     className={`relative rounded-2xl border-2 p-1.5 cursor-pointer overflow-hidden transition-all text-center flex flex-col items-center ${
                       selectedAvatar?.id === av.id && !customAvatarImage
                         ? 'border-black ring-2 ring-orange-500 bg-orange-50/30 shadow-md'
@@ -616,7 +340,6 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
                 ))}
               </div>
 
-              {/* Upload ảnh cá nhân */}
               <div className="border-2 border-dashed border-gray-300 rounded-2xl p-4 text-center bg-gray-50 hover:bg-orange-50/50 transition cursor-pointer relative group">
                 <input 
                   type="file" 
@@ -628,13 +351,13 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
                   {customAvatarImage ? (
                     <div className="flex items-center justify-center space-x-2 text-green-700 font-bold">
                       <CheckIcon className="w-5 h-5 text-green-600" />
-                      <span>Đã tải ảnh chân dung của bạn thành công! (Bấm để đổi ảnh)</span>
+                      <span>Đã tải ảnh của bạn thành công! (Bấm để đổi ảnh)</span>
                     </div>
                   ) : (
                     <div className="space-y-1">
                       <div className="text-2xl">📸</div>
-                      <div className="font-bold text-gray-900">Tải ảnh chân dung của bạn lên</div>
-                      <div className="text-[11px] text-gray-500">Chụp rõ khuôn mặt hoặc toàn thân để AI ghép chuẩn nhất</div>
+                      <div className="font-bold text-gray-900">Tải ảnh chân dung / nửa người của bạn lên</div>
+                      <div className="text-[11px] text-gray-500">Chụp thẳng mặt, thẳng người để IDM-VTON ghép chuẩn nhất</div>
                     </div>
                   )}
                 </div>
@@ -644,7 +367,7 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
             {/* Nhập số đo hình thể */}
             <div className="border-t pt-4 space-y-3">
               <label className="block text-xs font-bold text-gray-700 uppercase tracking-wide">
-                B. Số Đo Cơ Thể (AI Tự Động Tính Dáng & Gợi Ý Size)
+                B. Số Đo Cơ Thể (AI Tính Độ Dư Vải & Gợi Ý Size)
               </label>
 
               <div className="grid grid-cols-2 gap-3 text-xs">
@@ -670,29 +393,29 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
 
               <div className="grid grid-cols-3 gap-2 text-xs">
                 <div>
-                  <span className="text-gray-500 font-medium">Vòng 1 (Ngực):</span>
+                  <span className="text-gray-500 font-medium">Vòng ngực (cm):</span>
                   <input 
                     type="number" 
-                    value={measurements.bust}
-                    onChange={(e) => setMeasurements({ ...measurements, bust: Number(e.target.value) })}
+                    value={measurements.chest}
+                    onChange={(e) => setMeasurements({ ...measurements, chest: Number(e.target.value) })}
                     className="w-full border rounded-xl px-2 py-2 mt-1 font-bold text-center focus:outline-none focus:border-black"
                   />
                 </div>
                 <div>
-                  <span className="text-gray-500 font-medium">Vòng 2 (Eo):</span>
+                  <span className="text-gray-500 font-medium">Rộng vai (cm):</span>
+                  <input 
+                    type="number" 
+                    value={measurements.shoulder}
+                    onChange={(e) => setMeasurements({ ...measurements, shoulder: Number(e.target.value) })}
+                    className="w-full border rounded-xl px-2 py-2 mt-1 font-bold text-center focus:outline-none focus:border-black"
+                  />
+                </div>
+                <div>
+                  <span className="text-gray-500 font-medium">Vòng eo (cm):</span>
                   <input 
                     type="number" 
                     value={measurements.waist}
                     onChange={(e) => setMeasurements({ ...measurements, waist: Number(e.target.value) })}
-                    className="w-full border rounded-xl px-2 py-2 mt-1 font-bold text-center focus:outline-none focus:border-black"
-                  />
-                </div>
-                <div>
-                  <span className="text-gray-500 font-medium">Vòng 3 (Mông):</span>
-                  <input 
-                    type="number" 
-                    value={measurements.hips}
-                    onChange={(e) => setMeasurements({ ...measurements, hips: Number(e.target.value) })}
                     className="w-full border rounded-xl px-2 py-2 mt-1 font-bold text-center focus:outline-none focus:border-black"
                   />
                 </div>
@@ -701,7 +424,7 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
           </div>
         </div>
 
-        {/* CỘT PHẢI (7 phần): Bước 2 - Chọn Sản Phẩm Thật Trên Sàn */}
+        {/* CỘT PHẢI (7 phần): Bước 2 - Chọn Trang Phục */}
         <div className="lg:col-span-7 space-y-6">
           <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-sm space-y-5">
             <div className="flex items-center justify-between border-b pb-3">
@@ -710,94 +433,22 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
                 <span>Bước 2: Chọn Trang Phục Muốn Thử</span>
               </h2>
               <span className="text-[10px] bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded-full uppercase">
-                {wigs.length + clothes.length} Sản phẩm thật
+                {clothes.length} Sản phẩm thật
               </span>
             </div>
 
-            {/* 1. KHO TÓC GIẢ — ĐÃ ẨN: Chỉ dùng ảnh chính diện người thật với IDM-VTON */}
-            {false && <div>
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
-                <label className="text-xs font-bold text-gray-800 uppercase tracking-wide">
-                  1. Mẫu Tóc Giả ({filteredWigs.length} mẫu có sẵn):
-                </label>
-                <div className="relative w-full sm:w-48">
-                  <input 
-                    type="text"
-                    placeholder="Tìm kiểu tóc..."
-                    value={wigSearch}
-                    onChange={(e) => setWigSearch(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-full px-3 py-1 text-xs focus:outline-none focus:border-black"
-                  />
-                </div>
-              </div>
-
-              {loadingCatalog ? (
-                <div className="text-center py-8 text-xs text-gray-400">Đang tải kho tóc giả...</div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-72 overflow-y-auto pr-1">
-                  {filteredWigs.map((wig) => {
-                    const isSelected = selectedWig?.id === wig.id;
-                    const isPreselected = preselectedWigId && String(wig.id) === String(preselectedWigId);
-                    const isNatural = wig.id === 'wig-natural';
-                    return (
-                      <div
-                        key={wig.id}
-                        onClick={() => setSelectedWig(wig)}
-                        className={`rounded-2xl border-2 p-2.5 cursor-pointer transition-all flex flex-col justify-between relative ${
-                          isSelected
-                            ? 'border-black ring-2 ring-orange-500 bg-orange-50/20 shadow-md'
-                            : 'border-gray-200 hover:border-gray-400 bg-white'
-                        }`}
-                      >
-                        {isPreselected && (
-                          <span className="absolute top-2 right-2 bg-orange-600 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow">
-                            ⚡ Đang xem
-                          </span>
-                        )}
-                        <div>
-                          {isNatural ? (
-                            <div className="w-full h-28 bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl mb-1.5 flex flex-col items-center justify-center text-center p-2 border border-dashed border-orange-300">
-                              <div className="text-2xl mb-1">✨</div>
-                              <span className="text-[11px] font-bold text-gray-800">Tóc Thật Của Bạn</span>
-                              <span className="text-[9px] text-gray-500">Không đổi tóc giả</span>
-                            </div>
-                          ) : (
-                            <img src={wig.overlayImage} alt={wig.name} className="w-full h-28 object-cover rounded-xl mb-1.5" />
-                          )}
-                          <h4 className="text-xs font-bold text-gray-900 line-clamp-2 leading-snug">{wig.name}</h4>
-                          <p className="text-[10px] text-orange-600 font-semibold mt-0.5">{wig.color}</p>
-                        </div>
-                        <div className="mt-2 pt-1.5 border-t flex justify-between items-center text-xs">
-                          <span className={`font-black ${isNatural ? 'text-green-600' : 'text-red-600'}`}>
-                            {isNatural ? '0 đ' : `${Number(wig.price || 0).toLocaleString()} đ`}
-                          </span>
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                            isSelected ? 'bg-black text-white' : 'bg-gray-100 text-gray-700'
-                          }`}>
-                            {isSelected ? '✓ Đang chọn' : 'Chọn'}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>}
-
-            {/* Hướng dẫn chụp ảnh chính diện */}
-            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 mb-3 flex items-start gap-2">
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 flex items-start gap-2">
               <span className="text-lg">📸</span>
               <div>
-                <p className="text-xs font-bold text-indigo-800">Yêu cầu ảnh avatar để AI ghép đồ chuẩn nhất:</p>
-                <p className="text-xs text-indigo-700 mt-0.5">Chụp <strong>chính diện</strong> — thẳng mặt, thẳng người, nền đơn giản. Tốt nhất: ảnh toàn thân hoặc nửa người trên.</p>
+                <p className="text-xs font-bold text-indigo-800">Mẹo để IDM-VTON ghép áo chuẩn như ảnh chụp thật:</p>
+                <p className="text-xs text-indigo-700 mt-0.5">Chọn ảnh người đứng thẳng chính diện, ánh sáng rõ ràng. Lần đầu thử mỗi mẫu sẽ mất khoảng 15–20 giây để AI sinh ảnh.</p>
               </div>
             </div>
 
-            {/* 2. KHO TRANG PHỤC THỜI TRANG */}
-            <div className="border-t pt-4">
+            <div>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-2">
                 <label className="text-xs font-bold text-gray-800 uppercase tracking-wide">
-                  2. Mẫu Trang Phục ({filteredClothes.length} mẫu có sẵn):
+                  Mẫu Trang Phục ({filteredClothes.length} mẫu có sẵn):
                 </label>
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <select 
@@ -823,7 +474,7 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
               {loadingCatalog ? (
                 <div className="text-center py-8 text-xs text-gray-400">Đang tải kho trang phục...</div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-72 overflow-y-auto pr-1">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-80 overflow-y-auto pr-1">
                   {filteredClothes.map((item) => {
                     const isSelected = selectedClothing?.id === item.id;
                     const isPreselected = preselectedClothingId && String(item.id) === String(preselectedClothingId);
@@ -862,7 +513,6 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
               )}
             </div>
 
-            {/* Nút Bắt Đầu Thử Đồ */}
             <div className="border-t pt-4">
               <button
                 type="button"
@@ -876,41 +526,43 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
                   <div className="flex items-center space-x-2">
                     <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
                     <span>
-                      {scanStep === 1 && "Đang nhận diện mốc khuôn mặt (Face Landmarks)..."}
-                      {scanStep === 2 && "Đang quét vóc dáng 3D và đối chiếu số đo..."}
-                      {scanStep === 3 && "Đang tạo ảnh thời trang AI 2-in-1 chân thực..."}
+                      {scanStep === 1 && "Đang tối ưu ảnh và kiểm tra Cache..."}
+                      {scanStep === 2 && "AI IDM-VTON đang dệt trang phục lên người mẫu..."}
+                      {scanStep === 3 && "Gemini đang tính độ dư vải & hoàn thiện ảnh..."}
                     </span>
                   </div>
                 ) : (
                   <>
                     <SparklesIcon className="w-4 h-4 text-orange-400" />
-                    <span>⚡ Bắt Đầu Thử Đồ AI 2-in-1 Ngay</span>
+                    <span>⚡ Thử Đồ Ảo AI & Tư Vấn Size Ngay</span>
                   </>
                 )}
               </button>
-              {(!selectedClothing) && (
-                <p className="text-[11px] text-red-500 font-semibold text-center mt-2">
-                  ⚠️ Vui lòng chọn ít nhất 1 mẫu trang phục ở trên để kích hoạt thử đồ!
-                </p>
-              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* 3. KHU VỰC HIỂN THỊ KẾT QUẢ AI & THANH TRƯỢT BEFORE / AFTER SLIDER */}
+      {/* KHU VỰC HIỂN THỊ KẾT QUẢ IDM-VTON & TƯ VẤN SIZE GEMINI */}
       {tryOnResult && (
         <div id="try-on-result-section" className="mt-12 bg-white rounded-3xl p-6 md:p-10 border border-gray-200 shadow-2xl">
           <div className="text-center max-w-xl mx-auto mb-8 space-y-2">
-            <span className="inline-flex items-center space-x-1.5 bg-green-100 text-green-800 text-[11px] font-bold px-3 py-1 rounded-full uppercase">
-              <CheckIcon className="w-3.5 h-3.5 text-green-600" />
-              <span>AI Virtual Fitting Hoàn Tất</span>
-            </span>
+            <div className="flex items-center justify-center gap-2">
+              <span className="inline-flex items-center space-x-1.5 bg-green-100 text-green-800 text-[11px] font-bold px-3 py-1 rounded-full uppercase">
+                <CheckIcon className="w-3.5 h-3.5 text-green-600" />
+                <span>AI Virtual Fitting Hoàn Tất</span>
+              </span>
+              {tryOnResult.source === 'cache' && (
+                <span className="bg-blue-100 text-blue-800 text-[11px] font-bold px-3 py-1 rounded-full uppercase">
+                  ⚡ Tải siêu tốc từ Cache
+                </span>
+              )}
+            </div>
             <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-gray-900">
-              Kết Quả Thử Đồ Đồng Bộ
+              Kết Quả Thử Đồ Thực Tế
             </h2>
             <p className="text-xs text-gray-500">
-              Kéo thanh trượt giữa ảnh để so sánh trực quan diện mạo trước và sau khi được AI phối đồ!
+              Kéo thanh trượt giữa ảnh để so sánh trực quan trước và sau khi mặc thử sản phẩm!
             </p>
           </div>
 
@@ -918,9 +570,9 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
             
             {/* Cột Trái (6 phần): Interactive Before / After Split Slider */}
             <div className="lg:col-span-6 flex flex-col items-center">
-              <div className="relative w-full max-w-md h-[500px] rounded-3xl overflow-hidden shadow-2xl border-2 border-gray-900 select-none bg-gray-100">
+              <div className="relative w-full max-w-md h-[520px] rounded-3xl overflow-hidden shadow-2xl border-2 border-gray-900 select-none bg-gray-100">
                 
-                {/* Ảnh SAU KHI THỬ ĐỒ (Rendered AI Look) */}
+                {/* Ảnh SAU KHI THỬ ĐỒ TỪ IDM-VTON */}
                 <img 
                   src={tryOnResult.renderedImage} 
                   alt="After Look" 
@@ -928,10 +580,10 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
                 />
                 <span className="absolute top-4 right-4 bg-orange-600 text-white text-[10px] font-black uppercase px-3 py-1 rounded-full shadow-lg z-10 flex items-center gap-1">
                   <SparklesIcon className="w-3 h-3 text-white" />
-                  <span>VibeBili AI Look</span>
+                  <span>IDM-VTON AI</span>
                 </span>
 
-                {/* Ảnh GỐC TRƯỚC KHI THỬ ĐỒ (Original Image clipped by slider) */}
+                {/* Ảnh GỐC TRƯỚC KHI THỬ ĐỒ */}
                 <div 
                   className="absolute inset-y-0 left-0 overflow-hidden pointer-events-none"
                   style={{ width: `${sliderPosition}%` }}
@@ -947,7 +599,7 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
                   </span>
                 </div>
 
-                {/* Thanh Trượt Phân Cách (Divider Line) */}
+                {/* Thanh Trượt Phân Cách */}
                 <div 
                   className="absolute inset-y-0 w-1 bg-white shadow-2xl z-20 pointer-events-none"
                   style={{ left: `${sliderPosition}%` }}
@@ -957,7 +609,6 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
                   </div>
                 </div>
 
-                {/* Input Slider ẩn để người dùng kéo rê mượt mà */}
                 <input 
                   type="range" 
                   min="0" 
@@ -973,337 +624,100 @@ function VirtualTryOn({ preselectedWigId = null, preselectedClothingId = null, o
                 <span>← Kéo sang trái/phải để so sánh</span>
                 <a 
                   href={tryOnResult.renderedImage} 
-                  download="vibebili_ai_tryon_look.jpg"
+                  download="vibebili_ai_tryon_look.png"
+                  target="_blank"
+                  rel="noreferrer"
                   className="text-orange-600 hover:underline flex items-center gap-1 font-bold"
                 >
-                  📥 Tải ảnh về máy
+                  📥 Mở / Tải ảnh về máy
                 </a>
-              </div>
-
-              {/* BỘ CÔNG CỤ TINH CHỈNH TỌA ĐỘ VÀ KÍCH THƯỚC (CHO ĐỘ CHÍNH XÁC 99%) */}
-              <div className="w-full max-w-md mt-5">
-                <button
-                  type="button"
-                  onClick={() => setShowTransformControls(!showTransformControls)}
-                  className="w-full bg-orange-50 hover:bg-orange-100 text-orange-800 border border-orange-200 font-extrabold py-2.5 px-4 rounded-2xl text-xs flex items-center justify-between transition shadow-xs"
-                >
-                  <span className="flex items-center gap-1.5">
-                    <span>🛠️</span>
-                    <span>Tinh Chỉnh Khớp Dáng Thủ Công (Tóc & Trang Phục)</span>
-                  </span>
-                  <span>{showTransformControls ? '▲ Đóng' : '▼ Mở'}</span>
-                </button>
-
-                {showTransformControls && (
-                  <div className="mt-3 bg-white p-4 rounded-2xl border border-gray-200 shadow-md space-y-4 animate-fade-in text-xs">
-                    
-                    {/* Tabs chọn layer tinh chỉnh */}
-                    <div className="flex border-b pb-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setActiveAdjustTab('wig')}
-                        className={`flex-1 py-1.5 font-bold rounded-xl transition ${
-                          activeAdjustTab === 'wig'
-                            ? 'bg-black text-white shadow-xs'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        💇 Tóc Giả
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setActiveAdjustTab('clothing')}
-                        className={`flex-1 py-1.5 font-bold rounded-xl transition ${
-                          activeAdjustTab === 'clothing'
-                            ? 'bg-black text-white shadow-xs'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        👗 Trang Phục
-                      </button>
-                    </div>
-
-                    {/* Điều khiển layer Tóc Giả */}
-                    {activeAdjustTab === 'wig' && (
-                      <div className="space-y-3">
-                        <div>
-                          <div className="flex justify-between font-semibold text-gray-700 mb-1">
-                            <span>Vị trí Cao / Thấp (Trục Dọc):</span>
-                            <span className="font-mono text-orange-600">{wigTransform.y}px</span>
-                          </div>
-                          <input
-                            type="range"
-                            min="-120"
-                            max="120"
-                            step="2"
-                            value={wigTransform.y}
-                            onChange={(e) => handleUpdateTransform('wig', 'y', e.target.value)}
-                            className="w-full accent-orange-600"
-                          />
-                        </div>
-
-                        <div>
-                          <div className="flex justify-between font-semibold text-gray-700 mb-1">
-                            <span>Vị trí Trái / Phải (Trục Ngang):</span>
-                            <span className="font-mono text-orange-600">{wigTransform.x}px</span>
-                          </div>
-                          <input
-                            type="range"
-                            min="-80"
-                            max="80"
-                            step="2"
-                            value={wigTransform.x}
-                            onChange={(e) => handleUpdateTransform('wig', 'x', e.target.value)}
-                            className="w-full accent-orange-600"
-                          />
-                        </div>
-
-                        <div>
-                          <div className="flex justify-between font-semibold text-gray-700 mb-1">
-                            <span>Kích Cỡ Mái Tóc (Thu nhỏ / Phóng to):</span>
-                            <span className="font-mono text-orange-600">{Math.round(wigTransform.scale * 100)}%</span>
-                          </div>
-                          <input
-                            type="range"
-                            min="0.7"
-                            max="1.35"
-                            step="0.02"
-                            value={wigTransform.scale}
-                            onChange={(e) => handleUpdateTransform('wig', 'scale', e.target.value)}
-                            className="w-full accent-orange-600"
-                          />
-                        </div>
-
-                        {/* Phím bấm điều chỉnh nhanh 1 chạm */}
-                        <div className="pt-2 border-t grid grid-cols-4 gap-1.5 text-[10px] font-bold text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateTransform('wig', 'y', wigTransform.y - 8)}
-                            className="bg-gray-100 hover:bg-gray-200 py-1 rounded-lg border border-gray-200"
-                          >
-                            ⬆ Nâng lên
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateTransform('wig', 'y', wigTransform.y + 8)}
-                            className="bg-gray-100 hover:bg-gray-200 py-1 rounded-lg border border-gray-200"
-                          >
-                            ⬇ Hạ xuống
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateTransform('wig', 'scale', Math.min(1.35, wigTransform.scale + 0.05))}
-                            className="bg-gray-100 hover:bg-gray-200 py-1 rounded-lg border border-gray-200"
-                          >
-                            ➕ Phóng to
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateTransform('wig', 'scale', Math.max(0.7, wigTransform.scale - 0.05))}
-                            className="bg-gray-100 hover:bg-gray-200 py-1 rounded-lg border border-gray-200"
-                          >
-                            ➖ Thu nhỏ
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Điều khiển layer Trang Phục */}
-                    {activeAdjustTab === 'clothing' && (
-                      <div className="space-y-3">
-                        <div>
-                          <div className="flex justify-between font-semibold text-gray-700 mb-1">
-                            <span>Vị trí Cao / Thấp (Trục Dọc):</span>
-                            <span className="font-mono text-orange-600">{clothingTransform.y}px</span>
-                          </div>
-                          <input
-                            type="range"
-                            min="-120"
-                            max="120"
-                            step="2"
-                            value={clothingTransform.y}
-                            onChange={(e) => handleUpdateTransform('clothing', 'y', e.target.value)}
-                            className="w-full accent-orange-600"
-                          />
-                        </div>
-
-                        <div>
-                          <div className="flex justify-between font-semibold text-gray-700 mb-1">
-                            <span>Vị trí Trái / Phải (Trục Ngang):</span>
-                            <span className="font-mono text-orange-600">{clothingTransform.x}px</span>
-                          </div>
-                          <input
-                            type="range"
-                            min="-80"
-                            max="80"
-                            step="2"
-                            value={clothingTransform.x}
-                            onChange={(e) => handleUpdateTransform('clothing', 'x', e.target.value)}
-                            className="w-full accent-orange-600"
-                          />
-                        </div>
-
-                        <div>
-                          <div className="flex justify-between font-semibold text-gray-700 mb-1">
-                            <span>Kích Cỡ Trang Phục (Thu nhỏ / Phóng to):</span>
-                            <span className="font-mono text-orange-600">{Math.round(clothingTransform.scale * 100)}%</span>
-                          </div>
-                          <input
-                            type="range"
-                            min="0.7"
-                            max="1.35"
-                            step="0.02"
-                            value={clothingTransform.scale}
-                            onChange={(e) => handleUpdateTransform('clothing', 'scale', e.target.value)}
-                            className="w-full accent-orange-600"
-                          />
-                        </div>
-
-                        {/* Phím bấm điều chỉnh nhanh 1 chạm */}
-                        <div className="pt-2 border-t grid grid-cols-4 gap-1.5 text-[10px] font-bold text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateTransform('clothing', 'y', clothingTransform.y - 8)}
-                            className="bg-gray-100 hover:bg-gray-200 py-1 rounded-lg border border-gray-200"
-                          >
-                            ⬆ Nâng lên
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateTransform('clothing', 'y', clothingTransform.y + 8)}
-                            className="bg-gray-100 hover:bg-gray-200 py-1 rounded-lg border border-gray-200"
-                          >
-                            ⬇ Hạ xuống
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateTransform('clothing', 'scale', Math.min(1.35, clothingTransform.scale + 0.05))}
-                            className="bg-gray-100 hover:bg-gray-200 py-1 rounded-lg border border-gray-200"
-                          >
-                            ➕ Phóng to
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateTransform('clothing', 'scale', Math.max(0.7, clothingTransform.scale - 0.05))}
-                            className="bg-gray-100 hover:bg-gray-200 py-1 rounded-lg border border-gray-200"
-                          >
-                            ➖ Thu nhỏ
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Nút đặt lại */}
-                    <div className="pt-2 border-t flex justify-between items-center">
-                      <button
-                        type="button"
-                        onClick={handleResetTransforms}
-                        className="text-gray-500 hover:text-black font-semibold text-[11px] underline"
-                      >
-                        🔄 Đặt lại mặc định
-                      </button>
-                      {isRecompositing && (
-                        <span className="text-orange-600 font-bold text-[11px] animate-pulse">
-                          Đang cập nhật...
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
 
-            {/* Cột Phải (6 phần): AI Fit Score & Mua Trọn Bộ Combo */}
+            {/* Cột Phải (6 phần): Tư vấn Size từ Gemini & Mua Hàng */}
             <div className="lg:col-span-6 space-y-5">
               
-              {/* Điểm số phù hợp từ AI */}
-              <div className="bg-gradient-to-br from-orange-50/50 to-pink-50/30 border border-orange-200 rounded-3xl p-6 space-y-4">
+              {/* Khung AI Tư Vấn Size từ Gemini */}
+              <div className="bg-gradient-to-br from-orange-50/60 to-pink-50/40 border border-orange-200 rounded-3xl p-6 space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-xs font-black uppercase tracking-wider text-gray-500">Chỉ Số Ăn Khớp (AI Fit Score)</h3>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-gray-500">
+                      AI Đề Xuất Size Chuẩn Nhất
+                    </h3>
                     <div className="text-4xl font-black text-orange-600 mt-1">
-                      {tryOnResult.scores.overallFitScore}<span className="text-lg text-gray-400">/100</span>
+                      {tryOnResult.sizeAdvice?.recommended_size || tryOnResult.selectedItem.recommendedSize}
                     </div>
                   </div>
                   <div className="text-right">
                     <span className="bg-green-600 text-white text-[11px] font-black uppercase px-3 py-1 rounded-full shadow-sm">
-                      ✓ Rất Hài Hòa Với Bạn
+                      ✓ Gemini Size Advisor
                     </span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 text-xs border-t border-orange-100 pt-3">
+                <div className="grid grid-cols-3 gap-2 text-xs border-t border-orange-100 pt-3">
                   <div>
-                    <span className="text-gray-500">Tôn dáng khuôn mặt:</span>
-                    <div className="font-extrabold text-gray-900 mt-0.5">{tryOnResult.scores.faceHarmonization}% (Cân đối gò má & trán)</div>
+                    <span className="text-gray-500">Vòng ngực:</span>
+                    <div className="font-extrabold text-gray-900 mt-0.5">{measurements.chest} cm</div>
                   </div>
                   <div>
-                    <span className="text-gray-500">Tỷ lệ vóc dáng:</span>
-                    <div className="font-extrabold text-gray-900 mt-0.5">{tryOnResult.scores.bodyProportion}% ({tryOnResult.bodyAnalysis.bodyShapeType})</div>
+                    <span className="text-gray-500">Rộng vai:</span>
+                    <div className="font-extrabold text-gray-900 mt-0.5">{measurements.shoulder} cm</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Vòng eo:</span>
+                    <div className="font-extrabold text-gray-900 mt-0.5">{measurements.waist} cm</div>
                   </div>
                 </div>
 
-                {/* Nhận xét Stylist AI */}
-                <div className="space-y-1.5 border-t border-orange-100 pt-3">
-                  <h4 className="text-xs font-bold text-gray-900 uppercase">Đánh giá từ AI Stylist:</h4>
-                  {tryOnResult.feedback.map((fb, idx) => (
-                    <p key={idx} className="text-xs text-gray-700 leading-relaxed">{fb}</p>
-                  ))}
+                <div className="space-y-2 border-t border-orange-100 pt-3">
+                  <h4 className="text-xs font-bold text-gray-900 uppercase">Phân tích độ vừa vặn từ Gemini AI:</h4>
+                  <p className="text-xs text-gray-700 leading-relaxed">
+                    {tryOnResult.sizeAdvice?.fit_analysis || 
+                      `Với chiều cao ${measurements.height}cm, cân nặng ${measurements.weight}kg và số đo vòng ngực ${measurements.chest}cm, mẫu áo này sẽ ôm vừa vặn phần vai và tạo độ rủ thoải mái ở eo.`}
+                  </p>
+                  {tryOnResult.sizeAdvice?.warning && (
+                    <div className="bg-amber-100/80 border border-amber-300 text-amber-900 text-xs p-2.5 rounded-xl font-medium">
+                      ⚠️ Lưu ý: {tryOnResult.sizeAdvice.warning}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* MUA TRỌN BỘ COMBO 2-IN-1 ƯU ĐÃI 15% */}
+              {/* Khung Đặt Mua Sản Phẩm Đang Thử */}
               <div className="bg-gray-900 text-white rounded-3xl p-6 space-y-4 shadow-xl">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="bg-red-600 text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full">
-                      🔥 Ưu Đãi Combo Thử Đồ -15%
-                    </span>
-                    <h3 className="text-base font-black mt-2">
-                      Mua Trọn Bộ Set AI Đang Thử
-                    </h3>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      Gồm: 01 {tryOnResult.selectedItems.clothing.name} + 01 {tryOnResult.selectedItems.wig.name}
-                    </p>
-                  </div>
+                <div>
+                  <span className="bg-orange-600 text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full">
+                    ✨ Trang Phục Đang Thử
+                  </span>
+                  <h3 className="text-lg font-black mt-2">
+                    {tryOnResult.selectedItem.name}
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Size đề xuất: <strong className="text-white">{tryOnResult.selectedItem.recommendedSize}</strong> • Danh mục: {tryOnResult.selectedItem.category}
+                  </p>
                 </div>
 
-                {/* Giá bán và Tiết kiệm */}
                 <div className="flex items-baseline space-x-3 border-t border-gray-800 pt-3">
                   <span className="text-2xl font-black text-orange-400">
-                    {tryOnResult.comboPromotion.comboPrice.toLocaleString()} đ
-                  </span>
-                  <span className="text-sm text-gray-400 line-through">
-                    {tryOnResult.comboPromotion.originalPrice.toLocaleString()} đ
-                  </span>
-                  <span className="text-xs text-green-400 font-bold">
-                    (Tiết kiệm {tryOnResult.comboPromotion.savedAmount.toLocaleString()} đ)
+                    {tryOnResult.price.toLocaleString()} đ
                   </span>
                 </div>
 
-                {/* Quà tặng kèm */}
-                <div className="bg-white/5 rounded-2xl p-3 text-xs space-y-1 border border-white/10">
-                  <p className="font-bold text-orange-300">🎁 Quà tặng kèm theo đơn combo:</p>
-                  {tryOnResult.comboPromotion.freeGifts.map((gift, gIdx) => (
-                    <p key={gIdx} className="text-gray-300 text-[11px]">• {gift}</p>
-                  ))}
-                </div>
-
-                {/* Nút Mua hàng */}
                 <div className="grid grid-cols-2 gap-3 pt-1">
                   <button
-                    onClick={handleAddComboToCart}
-                    className="bg-orange-600 hover:bg-orange-700 text-white font-black py-3 rounded-full text-xs uppercase tracking-wider transition shadow-lg flex items-center justify-center space-x-1.5"
+                    onClick={handleAddProductToCart}
+                    className="bg-orange-600 hover:bg-orange-700 text-white font-black py-3 rounded-full text-xs uppercase tracking-wider transition shadow-lg flex items-center justify-center space-x-1.5 cursor-pointer"
                   >
                     <ShoppingBagIcon className="w-4 h-4 text-white" />
                     <span>Thêm Vào Giỏ</span>
                   </button>
                   <button
                     onClick={() => {
-                      handleAddComboToCart();
+                      handleAddProductToCart();
                       if (onNavigateCheckout) onNavigateCheckout();
                     }}
-                    className="bg-white hover:bg-gray-100 text-gray-900 font-black py-3 rounded-full text-xs uppercase tracking-wider transition shadow-lg flex items-center justify-center space-x-1.5"
+                    className="bg-white hover:bg-gray-100 text-gray-900 font-black py-3 rounded-full text-xs uppercase tracking-wider transition shadow-lg flex items-center justify-center space-x-1.5 cursor-pointer"
                   >
                     <LightningIcon className="w-4 h-4 text-orange-600" />
                     <span>Mua Ngay</span>

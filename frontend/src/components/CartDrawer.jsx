@@ -23,7 +23,8 @@ function CartDrawer({ onNavigateCheckout }) {
     removeFreeship,
     systemVouchers,
     totalAmount,
-    totalCount
+    totalCount,
+    baseShippingFee
   } = useCart();
 
   const [inputCode, setInputCode] = useState('');
