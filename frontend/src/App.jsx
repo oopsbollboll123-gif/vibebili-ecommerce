@@ -39,6 +39,7 @@ function MainApp() {
   const [authInitialMode, setAuthInitialMode] = useState('login');
   const [logoutToast, setLogoutToast] = useState('');
   const [selectedProductId, setSelectedProductId] = useState(1);
+  const [selectedProductData, setSelectedProductData] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -172,8 +173,20 @@ function MainApp() {
       ).slice(0, 5)
     : [];
 
-  const handleProductClick = (id) => {
-    setSelectedProductId(id);
+  const handleProductClick = (productOrId) => {
+    let targetId = productOrId;
+    let targetData = null;
+
+    if (productOrId && typeof productOrId === 'object') {
+      targetId = productOrId.id;
+      targetData = productOrId;
+    } else {
+      targetId = productOrId;
+      targetData = products.find(p => String(p.id) === String(productOrId)) || null;
+    }
+
+    setSelectedProductId(targetId);
+    setSelectedProductData(targetData);
     setIsSearchFocused(false);
     setCurrentView('product-detail');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -182,7 +195,7 @@ function MainApp() {
   const handleQuickAddToCart = (e, product) => {
     e.stopPropagation();
     // Chuyển hướng tới trang chi tiết để khách hàng chủ động chọn đúng Size & Màu sắc phù hợp
-    handleProductClick(product.id);
+    handleProductClick(product);
   };
 
   // Xử lý gửi đăng ký nhận voucher 100k ở Footer
@@ -269,7 +282,7 @@ function MainApp() {
                   liveSuggestions.map((prod) => (
                     <div
                       key={prod.id}
-                      onClick={() => handleProductClick(prod.id)}
+                      onClick={() => handleProductClick(prod)}
                       className="p-3 hover:bg-vibe-50 flex items-center gap-3 cursor-pointer transition-colors"
                     >
                       <img
@@ -603,7 +616,7 @@ function MainApp() {
                   return (
                     <div
                       key={product.id}
-                      onClick={() => handleProductClick(product.id)}
+                      onClick={() => handleProductClick(product)}
                       className="product-card group"
                     >
                       {/* Product Image */}
@@ -688,6 +701,7 @@ function MainApp() {
         {currentView === 'product-detail' && (
           <ProductDetail 
             productId={selectedProductId}
+            initialProduct={selectedProductData}
             onBack={() => setCurrentView('home')}
             onNavigateCheckout={() => setCurrentView('checkout')}
             onNavigatePolicy={handleOpenPolicy}
@@ -768,11 +782,7 @@ function MainApp() {
           <SellerDashboard 
             onNavigateHome={() => { setCurrentView('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
             onNavigateAuth={() => { setAuthInitialMode('login'); setCurrentView('login'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-            onSelectProduct={(id) => {
-              setSelectedProductId(id);
-              setCurrentView('product-detail');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
+            onSelectProduct={(prodOrId) => handleProductClick(prodOrId)}
           />
         )}
 

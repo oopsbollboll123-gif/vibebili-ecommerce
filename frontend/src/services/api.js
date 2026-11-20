@@ -131,14 +131,7 @@ export const productAPI = {
     return request(`/products${queryString ? `?${queryString}` : ''}`);
   },
   getById: async (id) => {
-    // 1. Thử Backend API trước
-    try {
-      const res = await request(`/products/${id}`);
-      if (res && res.success && res.data) return res;
-    } catch (e) {
-      console.warn(`[API] /products/${id} thất bại, thử Firestore...`);
-    }
-    // 2. Fallback: tìm trong Cloud Firestore (giống getAll)
+    // 1. ƯU TIÊN SỐ 1: Tìm trong Cloud Firestore (Đồng bộ 100% với getAll trang chủ)
     try {
       const cloudProds = await fetchCloudProducts();
       if (cloudProds && cloudProds.length > 0) {
@@ -146,9 +139,30 @@ export const productAPI = {
         if (found) return { success: true, data: found, source: 'cloud' };
       }
     } catch (e) {
-      console.warn('[Cloud Firestore] getById fallback failed:', e.message);
+      console.warn('[Cloud Firestore] getById failed:', e.message);
     }
-    // 3. Trả về không tìm thấy
+
+    // 2. ƯU TIÊN SỐ 2: Tìm trong LocalStorage (sản phẩm người bán vừa tạo)
+    try {
+      const saved = localStorage.getItem('vibebili_custom_products');
+      if (saved) {
+        const list = JSON.parse(saved);
+        if (Array.isArray(list)) {
+          const found = list.find(p => String(p.id) === String(id));
+          if (found) return { success: true, data: found, source: 'local' };
+        }
+      }
+    } catch (e) {}
+
+    // 3. ƯU TIÊN SỐ 3: Thử Backend API (MySQL) nếu không có trên Cloud hay Local
+    try {
+      const res = await request(`/products/${id}`);
+      if (res && res.success && res.data) return res;
+    } catch (e) {
+      console.warn(`[API] /products/${id} không tìm thấy trên Backend API`);
+    }
+
+    // 4. Trả về không tìm thấy
     return { success: false, data: null };
   },
   create: async (productData) => {

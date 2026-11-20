@@ -18,7 +18,7 @@ import {
 } from './Icons';
 import TryOnModal from './TryOnModal';
 
-function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavigatePolicy, onBack }) {
+function ProductDetail({ productId, initialProduct = null, onNavigateCheckout, onNavigateTryOn, onNavigatePolicy, onBack }) {
   const { addToCart, openCart } = useCart();
   const { isWishlisted, toggleWishlist } = useWishlist();
   const { user, isAuthenticated } = useAuth();
@@ -165,7 +165,43 @@ function ProductDetail({ productId, onNavigateCheckout, onNavigateTryOn, onNavig
       return { colors, sizes };
     };
 
-    // Tải thông tin sản phẩm
+    // 0. ƯU TIÊN SỐ 1: Nếu cha truyền initialProduct có sẵn (do bấm trực tiếp từ Card ngoài trang chủ)
+    if (initialProduct && String(initialProduct.id) === String(targetId)) {
+      const { colors, sizes } = extractOptions(initialProduct);
+      const lengths = initialProduct.options?.find(o => o.name?.toLowerCase().includes('dài'))?.values || initialProduct.hairLengths || [];
+      setProduct({
+        ...initialProduct,
+        main_image: initialProduct.main_image || initialProduct.image || DEFAULT_PRODUCT_IMAGE,
+        colors,
+        sizes,
+        hairLengths: lengths
+      });
+      setSelectedColor(colors[0]?.name || 'Mặc định');
+      setSelectedSize(sizes[0] || 'Size S');
+      setSelectedLength(lengths?.[0] || '');
+      setLoading(false);
+
+      // Tải danh sách đánh giá từ API kết hợp localStorage
+      productAPI.getReviews(targetId)
+        .then(res => {
+          if (isMounted) {
+            let list = (res.success && Array.isArray(res.data)) ? res.data : [];
+            if (localReviews.length > 0) {
+              const apiIds = new Set(list.map(r => r.id));
+              const newLocal = localReviews.filter(r => !apiIds.has(r.id));
+              list = [...newLocal, ...list];
+            }
+            setReviews(list);
+          }
+        })
+        .catch(() => {
+          if (isMounted && localReviews.length > 0) setReviews(localReviews);
+        });
+
+      return;
+    }
+
+    // Tải thông tin sản phẩm từ API nếu không có initialProduct (ví dụ F5 tải lại trang)
     productAPI.getById(targetId)
       .then(res => {
         if (isMounted && res.success && res.data) {
