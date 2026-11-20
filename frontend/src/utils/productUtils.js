@@ -106,30 +106,38 @@ export const normalizeProduct = (p, fallbackIndex = 0) => {
   let catId = Number(p.category_id);
   let resolvedCatName = rawCat;
 
+  const hasWigInName = nameLower.includes('tóc') || nameLower.includes('wig') ||
+    nameLower.includes('mái hói') || nameLower.includes('kẹp phím') ||
+    nameLower.includes('chân tóc') || nameLower.includes('da đầu') ||
+    nameLower.includes('cột quấn') || nameLower.includes('búi tóc');
+
+  const hasClothesInName = nameLower.includes('áo') || nameLower.includes('quần') ||
+    nameLower.includes('đầm') || nameLower.includes('váy') || nameLower.includes('hoodie') ||
+    nameLower.includes('sweater') || nameLower.includes('blazer') || nameLower.includes('vest') ||
+    nameLower.includes('bomber') || nameLower.includes('polo') || nameLower.includes('sơ mi') ||
+    nameLower.includes('so mi') || nameLower.includes('jeans') || nameLower.includes('short') ||
+    nameLower.includes('cardigan') || nameLower.includes('gile') || nameLower.includes('tanktop') ||
+    nameLower.includes('croptop') || nameLower.includes('khoác');
+
   if (isCombo) {
     catId = 3;
     resolvedCatName = 'Outfit x Hairstyle Combo';
-  } else if (
-    catLower.includes('tóc') ||
-    catLower.includes('wig') ||
-    nameLower.includes('tóc') ||
-    nameLower.includes('wig') ||
-    nameLower.includes('mái hói') ||
-    nameLower.includes('kẹp phím') ||
-    nameLower.includes('chân tóc') ||
-    nameLower.includes('da đầu') ||
-    catId === 1 ||
-    catId === 4
-  ) {
+  } else if (hasWigInName) {
     catId = 1;
     resolvedCatName = 'Tóc Giả Cao Cấp';
-  } else if (
-    catLower.includes('nam') ||
-    nameLower.includes('nam') ||
-    nameLower.includes('men') ||
-    nameLower.includes('boy') ||
-    catId === 6
-  ) {
+  } else if (hasClothesInName) {
+    const isMen = catId === 6 || catLower.includes('nam') || nameLower.includes('nam') || nameLower.includes('men') || nameLower.includes('boy');
+    if (isMen) {
+      catId = 6;
+      resolvedCatName = 'Thời Trang Nam';
+    } else {
+      catId = 2;
+      resolvedCatName = 'Thời Trang Nữ';
+    }
+  } else if (catLower.includes('tóc') || catLower.includes('wig') || catId === 1 || catId === 4) {
+    catId = 1;
+    resolvedCatName = 'Tóc Giả Cao Cấp';
+  } else if (catLower.includes('nam') || nameLower.includes('nam') || catId === 6) {
     catId = 6;
     resolvedCatName = 'Thời Trang Nam';
   } else {
@@ -244,23 +252,41 @@ export const checkProductType = (product) => {
   const cName = (product.category_name || product.category || '').toLowerCase();
   const cId = Number(product.category_id);
 
-  // 1. TÓC GIẢ: Bất kỳ sản phẩm nào có từ khóa tóc/wig hoặc id 1, 4
-  const isWig = cId === 1 || cId === 4 ||
-    cName.includes('tóc') || cName.includes('wig') ||
-    name.includes('tóc') || name.includes('wig') ||
-    name.includes('mái hói') || name.includes('kẹp phím') ||
-    name.includes('chân tóc') || name.includes('da đầu');
-  if (isWig) return 'wig';
-
-  // 2. OUTFIT COMBO
+  // 1. OUTFIT COMBO
   const isCombo = Boolean(product.is_combo) || cId === 3 || cName.includes('combo') || name.includes('combo');
   if (isCombo) return 'combo';
 
-  // 3. THỜI TRANG NAM: Quần áo nam (tuyệt đối không phải tóc giả)
-  const isMen = cId === 6 || cName.includes('nam') || name.includes('nam') || name.includes('men') || name.includes('boy');
-  if (isMen) return 'men';
+  const hasWigInName = name.includes('tóc') || name.includes('wig') ||
+    name.includes('mái hói') || name.includes('kẹp phím') ||
+    name.includes('chân tóc') || name.includes('da đầu') ||
+    name.includes('cột quấn') || name.includes('búi tóc');
 
-  // 4. THỜI TRANG NỮ: Tất cả các trang phục còn lại
+  const hasClothesInName = name.includes('áo') || name.includes('quần') ||
+    name.includes('đầm') || name.includes('váy') || name.includes('hoodie') ||
+    name.includes('sweater') || name.includes('blazer') || name.includes('vest') ||
+    name.includes('bomber') || name.includes('polo') || name.includes('sơ mi') ||
+    name.includes('so mi') || name.includes('jeans') || name.includes('short') ||
+    name.includes('cardigan') || name.includes('gile') || name.includes('tanktop') ||
+    name.includes('croptop') || name.includes('khoác');
+
+  // 2. TÓC GIẢ: Nếu tên chứa từ khóa tóc/wig (kể cả "Tóc giả nam") -> Chắc chắn 100% là Tóc Giả
+  if (hasWigInName) return 'wig';
+
+  // 3. ÁO QUẦN: Nếu tên là áo quần (không có từ tóc) -> Chắc chắn 100% là Áo Quần, TUYỆT ĐỐI không phải tóc giả
+  if (hasClothesInName) {
+    const isMen = cId === 6 || cName.includes('nam') || name.includes('nam') || name.includes('men') || name.includes('boy');
+    return isMen ? 'men' : 'women';
+  }
+
+  // 4. Nếu tên không có từ khóa nhận diện, kiểm tra danh mục
+  if (cId === 1 || cId === 4 || cName.includes('tóc') || cName.includes('wig')) {
+    return 'wig';
+  }
+
+  if (cId === 6 || cName.includes('nam') || name.includes('nam') || name.includes('men') || name.includes('boy')) {
+    return 'men';
+  }
+
   return 'women';
 };
 

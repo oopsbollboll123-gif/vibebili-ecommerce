@@ -49,8 +49,24 @@ function MainApp() {
   const [tryOnClothingId, setTryOnClothingId] = useState(null);
 
   // Danh sách sản phẩm từ API
-  const [products, setProducts] = useState([]);
+  const [allProducts, setAllProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Sản phẩm hiển thị theo bộ lọc danh mục và từ khóa tìm kiếm (Tính toán tức thì 0ms, không phụ thuộc delay mạng)
+  const products = React.useMemo(() => {
+    let list = allProducts;
+    if (selectedCategory && selectedCategory !== 'all') {
+      list = list.filter(p => isProductInCategory(p, selectedCategory));
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(p =>
+        p.name?.toLowerCase().includes(q) ||
+        p.description?.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [allProducts, selectedCategory, searchQuery]);
 
   // Newsletter Footer state
   const [newsletterEmail, setNewsletterEmail] = useState('');
@@ -79,11 +95,8 @@ function MainApp() {
   // Load sản phẩm từ API kết hợp đồng bộ localStorage (Chuẩn hóa tự động)
   const loadProducts = () => {
     setLoading(true);
-    const params = {};
-    if (selectedCategory !== 'all') params.category = selectedCategory;
-    if (searchQuery.trim()) params.search = searchQuery.trim();
 
-    productAPI.getAll(params)
+    productAPI.getAll({})
       .then(res => {
         let fullList = (res.success && Array.isArray(res.data)) ? res.data.map((p, idx) => normalizeProduct(p, idx)) : [];
 
@@ -104,28 +117,12 @@ function MainApp() {
           localStorage.setItem('vibebili_cached_products', JSON.stringify(fullList));
         } catch (e) {}
 
-        let list = fullList;
-
-        // Lọc theo danh mục an toàn thông qua isProductInCategory (hỗ trợ cả Tóc giả, Nam, Nữ, Combo)
-        if (selectedCategory !== 'all') {
-          list = list.filter(p => isProductInCategory(p, selectedCategory));
-        }
-
-        // Lọc theo từ khóa tìm kiếm nếu có
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
-          list = list.filter(p =>
-            p.name?.toLowerCase().includes(q) ||
-            p.description?.toLowerCase().includes(q)
-          );
-        }
-
-        setProducts(list);
+        setAllProducts(fullList);
         setLoading(false);
 
         // Tự động kiểm tra và dọn dẹp các sản phẩm không còn tồn tại khỏi giỏ hàng
-        if (cleanseOrphanedCartItems && list.length > 0) {
-          cleanseOrphanedCartItems(list);
+        if (cleanseOrphanedCartItems && fullList.length > 0) {
+          cleanseOrphanedCartItems(fullList);
         }
       })
       .catch(err => {
@@ -136,19 +133,11 @@ function MainApp() {
           if (cached.length > 0) fullList = cached;
         } catch (e) {}
 
-        let list = fullList;
-        if (selectedCategory !== 'all') {
-          list = list.filter(p => isProductInCategory(p, selectedCategory));
-        }
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
-          list = list.filter(p => p.name?.toLowerCase().includes(q));
-        }
-        setProducts(list);
+        setAllProducts(fullList);
         setLoading(false);
 
-        if (cleanseOrphanedCartItems && list.length > 0) {
-          cleanseOrphanedCartItems(list);
+        if (cleanseOrphanedCartItems && fullList.length > 0) {
+          cleanseOrphanedCartItems(fullList);
         }
       });
   };
@@ -158,7 +147,7 @@ function MainApp() {
     const handleProductsUpdated = () => loadProducts();
     window.addEventListener('vibebili_products_updated', handleProductsUpdated);
     return () => window.removeEventListener('vibebili_products_updated', handleProductsUpdated);
-  }, [selectedCategory]);
+  }, []);
 
   const handleSearch = (e) => {
     if (e) e.preventDefault();
