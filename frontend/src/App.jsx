@@ -16,7 +16,7 @@ import WishlistView from './components/WishlistView';
 import PolicyPage from './components/PolicyPage';
 import { productAPI } from './services/api';
 import { bulkSyncProductsToCloud } from './services/firebase';
-import { DEFAULT_PRODUCT_IMAGE, normalizeProduct, getCleanCustomProducts } from './utils/productUtils';
+import { DEFAULT_PRODUCT_IMAGE, normalizeProduct, getCleanCustomProducts, isProductInCategory } from './utils/productUtils';
 import {
   ShoppingBagIcon,
   SearchIcon,
@@ -99,15 +99,9 @@ function MainApp() {
           }
         }
 
-        // Lọc theo danh mục an toàn tuyệt đối
+        // Lọc theo danh mục an toàn thông qua isProductInCategory (hỗ trợ cả Tóc giả, Nam, Nữ, Combo)
         if (selectedCategory !== 'all') {
-          const sel = selectedCategory.toLowerCase();
-          list = list.filter(p => {
-            const cName = (p.category_name || p.category || '').toLowerCase();
-            const cId = String(p.category_id || '');
-            const slug = (p.slug || '').toLowerCase();
-            return cName.includes(sel) || cId === sel || slug.includes(sel);
-          });
+          list = list.filter(p => isProductInCategory(p, selectedCategory));
         }
 
         // Lọc theo từ khóa tìm kiếm nếu có
@@ -131,12 +125,7 @@ function MainApp() {
         console.warn('Lỗi gọi API products, đọc từ localStorage:', err);
         let list = getCleanCustomProducts();
         if (selectedCategory !== 'all') {
-          const sel = selectedCategory.toLowerCase();
-          list = list.filter(p => {
-            const cName = (p.category_name || p.category || '').toLowerCase();
-            const cId = String(p.category_id || '');
-            return cName.includes(sel) || cId === sel;
-          });
+          list = list.filter(p => isProductInCategory(p, selectedCategory));
         }
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
@@ -189,8 +178,49 @@ function MainApp() {
     setSelectedProductData(targetData);
     setIsSearchFocused(false);
     setCurrentView('product-detail');
+
+    // Lưu trạng thái lịch sử trình duyệt để nút Back của trình duyệt / chuột / điện thoại hoạt động chuẩn
+    try {
+      window.history.pushState({ view: 'product-detail', productId: targetId }, '', `?product=${targetId}`);
+    } catch (e) {}
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  const handleBackToHome = () => {
+    setCurrentView('home');
+    setSelectedProductData(null);
+    try {
+      if (window.history.state && window.history.state.view) {
+        window.history.back();
+      } else {
+        window.history.replaceState({ view: 'home' }, '', window.location.pathname);
+      }
+    } catch (e) {}
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Lắng nghe sự kiện Back / Forward của trình duyệt và vuốt lùi trên điện thoại
+  useEffect(() => {
+    const handlePopState = (event) => {
+      const state = event.state;
+      if (state && state.view === 'product-detail' && state.productId) {
+        setSelectedProductId(state.productId);
+        const found = products.find(p => String(p.id) === String(state.productId));
+        setSelectedProductData(found || null);
+        setCurrentView('product-detail');
+      } else if (state && state.view) {
+        setCurrentView(state.view);
+      } else {
+        setCurrentView('home');
+        setSelectedProductData(null);
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [products]);
 
   const handleQuickAddToCart = (e, product) => {
     e.stopPropagation();
@@ -702,7 +732,7 @@ function MainApp() {
           <ProductDetail 
             productId={selectedProductId}
             initialProduct={selectedProductData}
-            onBack={() => setCurrentView('home')}
+            onBack={handleBackToHome}
             onNavigateCheckout={() => setCurrentView('checkout')}
             onNavigatePolicy={handleOpenPolicy}
             onNavigateTryOn={(prodId, type) => {

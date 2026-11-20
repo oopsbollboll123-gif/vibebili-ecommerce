@@ -104,19 +104,7 @@ export const productAPI = {
     try {
       const cloudProds = await fetchCloudProducts();
       if (cloudProds && cloudProds.length > 0) {
-        let filtered = cloudProds;
-        if (params.category && params.category !== 'all') {
-          const cat = params.category.toLowerCase();
-          filtered = filtered.filter(p => {
-            const cName = (p.category_name || p.category || '').toLowerCase();
-            return cName.includes(cat);
-          });
-        }
-        if (params.search) {
-          const q = params.search.toLowerCase();
-          filtered = filtered.filter(p => (p.name || '').toLowerCase().includes(q));
-        }
-        return { success: true, data: filtered, source: 'cloud' };
+        return { success: true, data: cloudProds, source: 'cloud' };
       }
     } catch (e) {
       console.warn('[Cloud Firestore]: Chưa sẵn sàng, thử Backend API');

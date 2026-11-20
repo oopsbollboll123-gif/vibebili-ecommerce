@@ -232,3 +232,49 @@ export const getCleanCustomProducts = () => {
     return [];
   }
 };
+
+/**
+ * Kiểm tra xem một sản phẩm có thuộc danh mục đang chọn hay không
+ * Nhận diện thông minh cả tên tiếng Việt, ID danh mục và từ khóa ngữ nghĩa
+ */
+export const isProductInCategory = (product, selectedCat) => {
+  if (!selectedCat || selectedCat === 'all' || selectedCat === 'Tất Cả') return true;
+  if (!product) return false;
+
+  const target = selectedCat.toLowerCase().trim();
+  const cName = (product.category_name || product.category || '').toLowerCase();
+  const name = (product.name || '').toLowerCase();
+  const cId = Number(product.category_id);
+
+  // 1. TÓC GIẢ CAO CẤP
+  if (target.includes('tóc') || target.includes('wig') || cId === 1 || cId === 4) {
+    return cId === 1 || cId === 4 ||
+           cName.includes('tóc') || cName.includes('wig') ||
+           name.includes('tóc') || name.includes('wig');
+  }
+
+  // 2. THỜI TRANG NAM
+  if (target.includes('nam') || cId === 6) {
+    return cId === 6 ||
+           cName.includes('nam') ||
+           name.includes('nam') ||
+           name.includes('men') ||
+           name.includes('boy');
+  }
+
+  // 3. THỜI TRANG NỮ
+  if (target.includes('nữ') || target.includes('nu') || cId === 2 || cId === 5) {
+    // Nếu có từ nam hoặc tóc thì loại trừ
+    const isNam = cId === 6 || cName.includes('nam') || name.includes('nam');
+    const isWig = cId === 1 || cId === 4 || cName.includes('tóc') || cName.includes('wig') || name.includes('tóc') || name.includes('wig');
+    if (isNam || isWig) return false;
+    return true; // Tất cả quần áo thời trang nữ/unisex
+  }
+
+  // 4. OUTFIT COMBO
+  if (target.includes('combo') || cId === 3) {
+    return cId === 3 || cName.includes('combo') || name.includes('combo') || Boolean(product.is_combo);
+  }
+
+  return cName.includes(target) || name.includes(target);
+};

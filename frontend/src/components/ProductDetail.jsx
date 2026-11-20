@@ -516,16 +516,25 @@ function ProductDetail({ productId, initialProduct = null, onNavigateCheckout, o
         </div>
       )}
 
-      {/* Breadcrumb điều hướng */}
-      <div className="flex items-center space-x-2 text-xs text-gray-500 mb-6">
-        <button onClick={onBack} className="hover:underline hover:text-black flex items-center space-x-1 font-semibold">
+      {/* Nút Quay Lại & Breadcrumb điều hướng */}
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-2 bg-gray-100 hover:bg-black hover:text-white text-gray-800 font-bold px-4 py-2 rounded-full text-xs transition-all shadow-sm active:scale-95 cursor-pointer"
+        >
           <ArrowLeftIcon className="w-3.5 h-3.5" />
-          <span>Trang chủ</span>
+          <span>← Quay lại trang trước</span>
         </button>
-        <span>/</span>
-        <span className="text-gray-600 font-medium">{activeProduct.category_name || 'Thời Trang & Tóc Giả'}</span>
-        <span>/</span>
-        <span className="text-black font-bold truncate max-w-md">{activeProduct.name}</span>
+
+        <div className="flex items-center space-x-1.5 text-xs text-gray-500 overflow-hidden">
+          <button onClick={onBack} className="hover:underline hover:text-black font-semibold">
+            Trang chủ
+          </button>
+          <span>/</span>
+          <span className="text-gray-600 font-medium truncate max-w-[150px]">{activeProduct.category_name || 'Thời Trang'}</span>
+          <span>/</span>
+          <span className="text-black font-bold truncate max-w-[220px]">{activeProduct.name}</span>
+        </div>
       </div>
 
       {/* --- KHU VỰC CHÍNH CỦA TRANG SẢN PHẨM --- */}
