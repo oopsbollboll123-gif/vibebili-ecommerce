@@ -201,6 +201,31 @@ function ProductDetail({ productId, initialProduct = null, onNavigateCheckout, o
       return;
     }
 
+    // 0.1 ƯU TIÊN SỐ 1.1: Tìm trong bộ nhớ đệm sản phẩm trang chủ vibebili_cached_products
+    try {
+      const cached = localStorage.getItem('vibebili_cached_products');
+      if (cached) {
+        const list = JSON.parse(cached);
+        const cachedItem = list.find(p => String(p.id) === String(targetId));
+        if (cachedItem) {
+          const { colors, sizes } = extractOptions(cachedItem);
+          const lengths = cachedItem.options?.find(o => o.name?.toLowerCase().includes('dài'))?.values || cachedItem.hairLengths || [];
+          setProduct({
+            ...cachedItem,
+            main_image: cachedItem.main_image || cachedItem.image || DEFAULT_PRODUCT_IMAGE,
+            colors,
+            sizes,
+            hairLengths: lengths
+          });
+          setSelectedColor(colors[0]?.name || 'Mặc định');
+          setSelectedSize(sizes[0] || 'Size S');
+          setSelectedLength(lengths?.[0] || '');
+          setLoading(false);
+          return;
+        }
+      }
+    } catch (e) {}
+
     // Tải thông tin sản phẩm từ API nếu không có initialProduct (ví dụ F5 tải lại trang)
     productAPI.getById(targetId)
       .then(res => {
@@ -275,7 +300,7 @@ function ProductDetail({ productId, initialProduct = null, onNavigateCheckout, o
       });
 
     return () => { isMounted = false; };
-  }, [productId]);
+  }, [productId, initialProduct]);
 
   const activeProduct = product;
   const wishlisted = activeProduct ? isWishlisted(activeProduct.id) : false;

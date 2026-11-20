@@ -109,30 +109,32 @@ export const normalizeProduct = (p, fallbackIndex = 0) => {
   if (isCombo) {
     catId = 3;
     resolvedCatName = 'Outfit x Hairstyle Combo';
-  } else if (catLower.includes('nam') || nameLower.includes('nam')) {
-    catId = 6;
-    resolvedCatName = 'Thời Trang Nam';
   } else if (
-    catLower.includes('nữ') ||
-    catLower.includes('nu') ||
-    catLower.includes('thời trang') ||
-    catLower.includes('áo') ||
-    catLower.includes('quần') ||
-    catLower.includes('đầm') ||
-    catLower.includes('váy') ||
-    nameLower.includes('nữ') ||
-    nameLower.includes('áo') ||
-    nameLower.includes('váy') ||
-    nameLower.includes('đầm')
+    catLower.includes('tóc') ||
+    catLower.includes('wig') ||
+    nameLower.includes('tóc') ||
+    nameLower.includes('wig') ||
+    nameLower.includes('mái hói') ||
+    nameLower.includes('kẹp phím') ||
+    nameLower.includes('chân tóc') ||
+    nameLower.includes('da đầu') ||
+    catId === 1 ||
+    catId === 4
   ) {
-    catId = 2;
-    resolvedCatName = 'Thời Trang Nữ';
-  } else if (catLower.includes('tóc') || catLower.includes('wig') || nameLower.includes('tóc')) {
     catId = 1;
     resolvedCatName = 'Tóc Giả Cao Cấp';
+  } else if (
+    catLower.includes('nam') ||
+    nameLower.includes('nam') ||
+    nameLower.includes('men') ||
+    nameLower.includes('boy') ||
+    catId === 6
+  ) {
+    catId = 6;
+    resolvedCatName = 'Thời Trang Nam';
   } else {
-    catId = catId && !isNaN(catId) ? catId : 2;
-    resolvedCatName = rawCat || 'Thời Trang Nữ';
+    catId = 2;
+    resolvedCatName = 'Thời Trang Nữ';
   }
 
   const extractedImg = extractImageUrl(p);
@@ -234,47 +236,66 @@ export const getCleanCustomProducts = () => {
 };
 
 /**
+ * Helper kiểm tra loại sản phẩm: Tóc Giả, Thời Trang Nam, Thời Trang Nữ, Combo
+ */
+export const checkProductType = (product) => {
+  if (!product) return 'other';
+  const name = (product.name || '').toLowerCase();
+  const cName = (product.category_name || product.category || '').toLowerCase();
+  const cId = Number(product.category_id);
+
+  // 1. TÓC GIẢ: Bất kỳ sản phẩm nào có từ khóa tóc/wig hoặc id 1, 4
+  const isWig = cId === 1 || cId === 4 ||
+    cName.includes('tóc') || cName.includes('wig') ||
+    name.includes('tóc') || name.includes('wig') ||
+    name.includes('mái hói') || name.includes('kẹp phím') ||
+    name.includes('chân tóc') || name.includes('da đầu');
+  if (isWig) return 'wig';
+
+  // 2. OUTFIT COMBO
+  const isCombo = Boolean(product.is_combo) || cId === 3 || cName.includes('combo') || name.includes('combo');
+  if (isCombo) return 'combo';
+
+  // 3. THỜI TRANG NAM: Quần áo nam (tuyệt đối không phải tóc giả)
+  const isMen = cId === 6 || cName.includes('nam') || name.includes('nam') || name.includes('men') || name.includes('boy');
+  if (isMen) return 'men';
+
+  // 4. THỜI TRANG NỮ: Tất cả các trang phục còn lại
+  return 'women';
+};
+
+/**
  * Kiểm tra xem một sản phẩm có thuộc danh mục đang chọn hay không
- * Nhận diện thông minh cả tên tiếng Việt, ID danh mục và từ khóa ngữ nghĩa
+ * Nhận diện chính xác 100%, tuyệt đối không lẫn lộn giữa Nam, Nữ và Tóc giả
  */
 export const isProductInCategory = (product, selectedCat) => {
   if (!selectedCat || selectedCat === 'all' || selectedCat === 'Tất Cả') return true;
   if (!product) return false;
 
   const target = selectedCat.toLowerCase().trim();
-  const cName = (product.category_name || product.category || '').toLowerCase();
-  const name = (product.name || '').toLowerCase();
-  const cId = Number(product.category_id);
+  const pType = checkProductType(product);
 
   // 1. TÓC GIẢ CAO CẤP
-  if (target.includes('tóc') || target.includes('wig') || cId === 1 || cId === 4) {
-    return cId === 1 || cId === 4 ||
-           cName.includes('tóc') || cName.includes('wig') ||
-           name.includes('tóc') || name.includes('wig');
+  if (target.includes('tóc') || target.includes('wig')) {
+    return pType === 'wig';
   }
 
   // 2. THỜI TRANG NAM
-  if (target.includes('nam') || cId === 6) {
-    return cId === 6 ||
-           cName.includes('nam') ||
-           name.includes('nam') ||
-           name.includes('men') ||
-           name.includes('boy');
+  if (target.includes('nam') || target.includes('men')) {
+    return pType === 'men';
   }
 
   // 3. THỜI TRANG NỮ
-  if (target.includes('nữ') || target.includes('nu') || cId === 2 || cId === 5) {
-    // Nếu có từ nam hoặc tóc thì loại trừ
-    const isNam = cId === 6 || cName.includes('nam') || name.includes('nam');
-    const isWig = cId === 1 || cId === 4 || cName.includes('tóc') || cName.includes('wig') || name.includes('tóc') || name.includes('wig');
-    if (isNam || isWig) return false;
-    return true; // Tất cả quần áo thời trang nữ/unisex
+  if (target.includes('nữ') || target.includes('nu') || target.includes('women')) {
+    return pType === 'women';
   }
 
   // 4. OUTFIT COMBO
-  if (target.includes('combo') || cId === 3) {
-    return cId === 3 || cName.includes('combo') || name.includes('combo') || Boolean(product.is_combo);
+  if (target.includes('combo')) {
+    return pType === 'combo';
   }
 
+  const cName = (product.category_name || product.category || '').toLowerCase();
+  const name = (product.name || '').toLowerCase();
   return cName.includes(target) || name.includes(target);
 };

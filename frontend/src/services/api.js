@@ -119,7 +119,21 @@ export const productAPI = {
     return request(`/products${queryString ? `?${queryString}` : ''}`);
   },
   getById: async (id) => {
-    // 1. ƯU TIÊN SỐ 1: Tìm trong Cloud Firestore (Đồng bộ 100% với getAll trang chủ)
+    if (!id) return { success: false, data: null };
+
+    // 1. ƯU TIÊN SỐ 1: Kiểm tra bộ nhớ đệm sản phẩm trang chủ (Đã có sẵn 100%, phản hồi tức thì 0ms)
+    try {
+      const cached = localStorage.getItem('vibebili_cached_products');
+      if (cached) {
+        const list = JSON.parse(cached);
+        if (Array.isArray(list)) {
+          const found = list.find(p => String(p.id) === String(id));
+          if (found) return { success: true, data: found, source: 'cache' };
+        }
+      }
+    } catch (e) {}
+
+    // 2. ƯU TIÊN SỐ 2: Tìm trong Cloud Firestore
     try {
       const cloudProds = await fetchCloudProducts();
       if (cloudProds && cloudProds.length > 0) {
@@ -130,7 +144,7 @@ export const productAPI = {
       console.warn('[Cloud Firestore] getById failed:', e.message);
     }
 
-    // 2. ƯU TIÊN SỐ 2: Tìm trong LocalStorage (sản phẩm người bán vừa tạo)
+    // 3. ƯU TIÊN SỐ 3: Tìm trong LocalStorage (sản phẩm người bán vừa tạo)
     try {
       const saved = localStorage.getItem('vibebili_custom_products');
       if (saved) {
@@ -142,7 +156,21 @@ export const productAPI = {
       }
     } catch (e) {}
 
-    // 3. ƯU TIÊN SỐ 3: Thử Backend API (MySQL) nếu không có trên Cloud hay Local
+    // 4. ƯU TIÊN SỐ 4: REST API Firestore trực tiếp (phòng khi SDK khởi tạo chậm)
+    try {
+      const restResp = await fetch(`https://firestore.googleapis.com/v1/projects/vibebili-shop/databases/(default)/documents/vibebili_products/${id}`);
+      if (restResp.ok) {
+        const docJson = await restResp.json();
+        const f = docJson.fields || {};
+        const pObj = {};
+        for (const [k, v] of Object.entries(f)) {
+          pObj[k] = v.stringValue || (v.integerValue !== undefined ? Number(v.integerValue) : (v.booleanValue !== undefined ? v.booleanValue : null));
+        }
+        return { success: true, data: { ...pObj, id: pObj.id || id }, source: 'firestore_rest' };
+      }
+    } catch (e) {}
+
+    // 5. ƯU TIÊN SỐ 5: Thử Backend API (MySQL)
     try {
       const res = await request(`/products/${id}`);
       if (res && res.success && res.data) return res;
@@ -150,7 +178,7 @@ export const productAPI = {
       console.warn(`[API] /products/${id} không tìm thấy trên Backend API`);
     }
 
-    // 4. Trả về không tìm thấy
+    // 6. Trả về không tìm thấy
     return { success: false, data: null };
   },
   create: async (productData) => {

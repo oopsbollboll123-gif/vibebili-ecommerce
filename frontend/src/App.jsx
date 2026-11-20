@@ -85,19 +85,26 @@ function MainApp() {
 
     productAPI.getAll(params)
       .then(res => {
-        let list = (res.success && Array.isArray(res.data)) ? res.data.map((p, idx) => normalizeProduct(p, idx)) : [];
+        let fullList = (res.success && Array.isArray(res.data)) ? res.data.map((p, idx) => normalizeProduct(p, idx)) : [];
 
         // Hợp nhất sản phẩm người bán tự tạo trong LocalStorage (đã được tự động chuẩn hóa)
         const custom = getCleanCustomProducts();
         if (custom.length > 0) {
-          const apiIds = new Set(list.map(p => p.id));
+          const apiIds = new Set(fullList.map(p => p.id));
           const newCustom = custom.filter(p => !apiIds.has(p.id));
           if (newCustom.length > 0) {
-            list = [...newCustom, ...list];
+            fullList = [...newCustom, ...fullList];
             // Tự động đẩy sản phẩm cục bộ lên Cloud Firestore để mọi máy khác và điện thoại đều thấy ngay
             bulkSyncProductsToCloud(newCustom).catch(() => {});
           }
         }
+
+        // Lưu toàn bộ danh mục sản phẩm vào bộ nhớ đệm an toàn để trang chi tiết và bộ lọc dùng tức thì
+        try {
+          localStorage.setItem('vibebili_cached_products', JSON.stringify(fullList));
+        } catch (e) {}
+
+        let list = fullList;
 
         // Lọc theo danh mục an toàn thông qua isProductInCategory (hỗ trợ cả Tóc giả, Nam, Nữ, Combo)
         if (selectedCategory !== 'all') {
@@ -123,7 +130,13 @@ function MainApp() {
       })
       .catch(err => {
         console.warn('Lỗi gọi API products, đọc từ localStorage:', err);
-        let list = getCleanCustomProducts();
+        let fullList = getCleanCustomProducts();
+        try {
+          const cached = JSON.parse(localStorage.getItem('vibebili_cached_products') || '[]');
+          if (cached.length > 0) fullList = cached;
+        } catch (e) {}
+
+        let list = fullList;
         if (selectedCategory !== 'all') {
           list = list.filter(p => isProductInCategory(p, selectedCategory));
         }
@@ -171,7 +184,13 @@ function MainApp() {
       targetData = productOrId;
     } else {
       targetId = productOrId;
-      targetData = products.find(p => String(p.id) === String(productOrId)) || null;
+      targetData = products.find(p => String(p.id) === String(productOrId));
+      if (!targetData) {
+        try {
+          const cached = JSON.parse(localStorage.getItem('vibebili_cached_products') || '[]');
+          targetData = cached.find(p => String(p.id) === String(productOrId)) || null;
+        } catch (e) {}
+      }
     }
 
     setSelectedProductId(targetId);
@@ -191,22 +210,46 @@ function MainApp() {
     setCurrentView('home');
     setSelectedProductData(null);
     try {
-      if (window.history.state && window.history.state.view) {
-        window.history.back();
-      } else {
-        window.history.replaceState({ view: 'home' }, '', window.location.pathname);
-      }
+      window.history.pushState({ view: 'home' }, '', window.location.pathname);
     } catch (e) {}
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // Kiểm tra URL query param khi người dùng tải trang hoặc F5
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const prodParam = params.get('product');
+      if (prodParam) {
+        setSelectedProductId(prodParam);
+        let found = null;
+        try {
+          const cached = JSON.parse(localStorage.getItem('vibebili_cached_products') || '[]');
+          found = cached.find(p => String(p.id) === String(prodParam));
+        } catch (e) {}
+        setSelectedProductData(found || null);
+        setCurrentView('product-detail');
+      }
+    } catch (e) {}
+  }, []);
 
   // Lắng nghe sự kiện Back / Forward của trình duyệt và vuốt lùi trên điện thoại
   useEffect(() => {
     const handlePopState = (event) => {
       const state = event.state;
-      if (state && state.view === 'product-detail' && state.productId) {
-        setSelectedProductId(state.productId);
-        const found = products.find(p => String(p.id) === String(state.productId));
+      const params = new URLSearchParams(window.location.search);
+      const prodParam = params.get('product');
+
+      if ((state && state.view === 'product-detail' && state.productId) || prodParam) {
+        const targetId = state?.productId || prodParam;
+        setSelectedProductId(targetId);
+        let found = products.find(p => String(p.id) === String(targetId));
+        if (!found) {
+          try {
+            const cached = JSON.parse(localStorage.getItem('vibebili_cached_products') || '[]');
+            found = cached.find(p => String(p.id) === String(targetId));
+          } catch (e) {}
+        }
         setSelectedProductData(found || null);
         setCurrentView('product-detail');
       } else if (state && state.view) {

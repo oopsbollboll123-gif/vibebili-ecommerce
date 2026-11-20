@@ -20,26 +20,40 @@ import { tryOnAPI } from '../services/api';
  * Tải ảnh an toàn, tự động xử lý CORS & Proxy fallback
  */
 export const loadImageSafely = (src) => {
-  return new Promise((resolve, reject) => {
-    if (!src) return reject(new Error('Nguồn ảnh không hợp lệ'));
+  return new Promise((resolve) => {
+    if (!src) {
+      const dummy = new Image();
+      dummy.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"/>';
+      return resolve(dummy);
+    }
 
     const img = new Image();
     if (!src.startsWith('data:') && !src.startsWith('blob:')) {
       img.crossOrigin = 'anonymous';
     }
 
-    const timer = setTimeout(() => {
-      if (!src.startsWith('data:') && !src.startsWith('blob:') && !src.includes('proxy-image')) {
-        const proxySrc = tryOnAPI.getProxyUrl(src);
-        const proxyImg = new Image();
-        proxyImg.crossOrigin = 'anonymous';
-        proxyImg.onload = () => resolve(proxyImg);
-        proxyImg.onerror = () => reject(new Error('Không thể tải ảnh qua proxy'));
-        proxyImg.src = proxySrc;
+    const tryFallback = () => {
+      // Thử dùng wsrv.nl proxy nếu nguồn bên ngoài bị chặn CORS
+      if (!src.startsWith('data:') && !src.startsWith('blob:') && !src.includes('wsrv.nl')) {
+        const fallbackImg = new Image();
+        fallbackImg.crossOrigin = 'anonymous';
+        fallbackImg.onload = () => resolve(fallbackImg);
+        fallbackImg.onerror = () => {
+          // Thử nạp trực tiếp
+          const rawImg = new Image();
+          rawImg.onload = () => resolve(rawImg);
+          rawImg.onerror = () => resolve(img);
+          rawImg.src = src;
+        };
+        fallbackImg.src = `https://wsrv.nl/?url=${encodeURIComponent(src)}`;
       } else {
-        reject(new Error('Tải ảnh quá thời gian cho phép'));
+        resolve(img);
       }
-    }, 6000);
+    };
+
+    const timer = setTimeout(() => {
+      tryFallback();
+    }, 4500);
 
     img.onload = () => {
       clearTimeout(timer);
@@ -48,16 +62,7 @@ export const loadImageSafely = (src) => {
 
     img.onerror = () => {
       clearTimeout(timer);
-      if (!src.startsWith('data:') && !src.startsWith('blob:') && !src.includes('proxy-image')) {
-        const proxySrc = tryOnAPI.getProxyUrl(src);
-        const proxyImg = new Image();
-        proxyImg.crossOrigin = 'anonymous';
-        proxyImg.onload = () => resolve(proxyImg);
-        proxyImg.onerror = (e) => reject(new Error('Lỗi nạp ảnh: ' + (e?.message || 'CORS block')));
-        proxyImg.src = proxySrc;
-      } else {
-        reject(new Error('Lỗi nạp ảnh từ đường dẫn'));
-      }
+      tryFallback();
     };
 
     img.src = src;
