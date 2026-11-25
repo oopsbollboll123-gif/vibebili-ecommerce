@@ -109,15 +109,21 @@ export const normalizeProduct = (p, fallbackIndex = 0) => {
   const hasWigInName = nameLower.includes('tóc') || nameLower.includes('wig') ||
     nameLower.includes('mái hói') || nameLower.includes('kẹp phím') ||
     nameLower.includes('chân tóc') || nameLower.includes('da đầu') ||
-    nameLower.includes('cột quấn') || nameLower.includes('búi tóc');
+    nameLower.includes('cột quấn') || nameLower.includes('búi tóc') ||
+    nameLower.includes('nguyên đầu') || nameLower.includes('che hói') ||
+    nameLower.includes('mái thưa') || nameLower.includes('mái ngố') ||
+    nameLower.includes('mái xéo') || nameLower.includes('topper');
 
   const hasClothesInName = nameLower.includes('áo') || nameLower.includes('quần') ||
     nameLower.includes('đầm') || nameLower.includes('váy') || nameLower.includes('hoodie') ||
     nameLower.includes('sweater') || nameLower.includes('blazer') || nameLower.includes('vest') ||
     nameLower.includes('bomber') || nameLower.includes('polo') || nameLower.includes('sơ mi') ||
-    nameLower.includes('so mi') || nameLower.includes('jeans') || nameLower.includes('short') ||
-    nameLower.includes('cardigan') || nameLower.includes('gile') || nameLower.includes('tanktop') ||
-    nameLower.includes('croptop') || nameLower.includes('khoác');
+    nameLower.includes('so mi') || nameLower.includes('jeans') || nameLower.includes('jean') ||
+    nameLower.includes('short') || nameLower.includes('cardigan') || nameLower.includes('gile') ||
+    nameLower.includes('tanktop') || nameLower.includes('croptop') || nameLower.includes('khoác') ||
+    nameLower.includes('t-shirt') || nameLower.includes('tshirt') || nameLower.includes('tee') ||
+    nameLower.includes('jacket') || nameLower.includes('pants') || nameLower.includes('trousers') ||
+    nameLower.includes('suit') || nameLower.includes('blouse') || nameLower.includes('thun');
 
   if (isCombo) {
     catId = 3;
@@ -259,15 +265,21 @@ export const checkProductType = (product) => {
   const hasWigInName = name.includes('tóc') || name.includes('wig') ||
     name.includes('mái hói') || name.includes('kẹp phím') ||
     name.includes('chân tóc') || name.includes('da đầu') ||
-    name.includes('cột quấn') || name.includes('búi tóc');
+    name.includes('cột quấn') || name.includes('búi tóc') ||
+    name.includes('nguyên đầu') || name.includes('che hói') ||
+    name.includes('mái thưa') || name.includes('mái ngố') ||
+    name.includes('mái xéo') || name.includes('topper');
 
   const hasClothesInName = name.includes('áo') || name.includes('quần') ||
     name.includes('đầm') || name.includes('váy') || name.includes('hoodie') ||
     name.includes('sweater') || name.includes('blazer') || name.includes('vest') ||
     name.includes('bomber') || name.includes('polo') || name.includes('sơ mi') ||
-    name.includes('so mi') || name.includes('jeans') || name.includes('short') ||
-    name.includes('cardigan') || name.includes('gile') || name.includes('tanktop') ||
-    name.includes('croptop') || name.includes('khoác');
+    name.includes('so mi') || name.includes('jeans') || name.includes('jean') ||
+    name.includes('short') || name.includes('cardigan') || name.includes('gile') ||
+    name.includes('tanktop') || name.includes('croptop') || name.includes('khoác') ||
+    name.includes('t-shirt') || name.includes('tshirt') || name.includes('tee') ||
+    name.includes('jacket') || name.includes('pants') || name.includes('trousers') ||
+    name.includes('suit') || name.includes('blouse') || name.includes('thun');
 
   // 2. TÓC GIẢ: Nếu tên chứa từ khóa tóc/wig (kể cả "Tóc giả nam") -> Chắc chắn 100% là Tóc Giả
   if (hasWigInName) return 'wig';
@@ -278,13 +290,17 @@ export const checkProductType = (product) => {
     return isMen ? 'men' : 'women';
   }
 
-  // 4. Nếu tên không có từ khóa nhận diện, kiểm tra danh mục
-  if (cId === 1 || cId === 4 || cName.includes('tóc') || cName.includes('wig')) {
-    return 'wig';
-  }
-
+  // 4. Nếu tên không có từ khóa nhận diện rõ, kiểm tra danh mục/tên xem có chữ "nam" không
   if (cId === 6 || cName.includes('nam') || name.includes('nam') || name.includes('men') || name.includes('boy')) {
     return 'men';
+  }
+
+  if (cId === 2 || cId === 5 || cName.includes('nữ') || cName.includes('nu') || cName.includes('women')) {
+    return 'women';
+  }
+
+  if (cId === 1 || cId === 4 || cName.includes('tóc') || cName.includes('wig')) {
+    return 'wig';
   }
 
   return 'women';

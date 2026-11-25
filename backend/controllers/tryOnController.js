@@ -131,9 +131,9 @@ exports.virtualTryOn = async (req, res) => {
     if (!product && productData) {
       product = {
         name: productData.name || 'Trang phục thời trang',
-        image_url: productData.overlayImage || productData.image_url || productData.rawProduct?.main_image,
-        size_chart: productData.rawProduct?.size_chart || null,
-        material: productData.rawProduct?.material || 'Cotton thoáng mát'
+        image_url: productData.overlayImage || productData.image_url || productData.image || productData.main_image || productData.link_anh || productData.rawProduct?.main_image || productData.rawProduct?.image,
+        size_chart: productData.rawProduct?.size_chart || productData.size_chart || null,
+        material: productData.rawProduct?.material || productData.material || 'Cotton thoáng mát'
       };
     }
 
@@ -149,8 +149,8 @@ exports.virtualTryOn = async (req, res) => {
       } catch { return null; }
     })();
 
-    // Đảm bảo link ảnh sản phẩm là URL đầy đủ
-    const fullGarmentUrl = product.image_url && product.image_url.startsWith('http')
+    // Đảm bảo link ảnh sản phẩm là URL đầy đủ hoặc Data URL
+    const fullGarmentUrl = product.image_url && (product.image_url.startsWith('http') || product.image_url.startsWith('data:'))
       ? product.image_url
       : product.image_url
         ? `http://localhost:${process.env.PORT || 5000}${product.image_url.startsWith('/') ? '' : '/'}${product.image_url}`

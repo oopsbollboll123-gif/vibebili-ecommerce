@@ -96,6 +96,15 @@ function MainApp() {
   const loadProducts = () => {
     setLoading(true);
 
+    // Tự động xóa cache cũ nếu phiên bản phân loại sản phẩm được nâng cấp
+    try {
+      const CACHE_KEY_VER = 'vibebili_cache_v3';
+      if (localStorage.getItem('vibebili_cache_version') !== CACHE_KEY_VER) {
+        localStorage.removeItem('vibebili_cached_products');
+        localStorage.setItem('vibebili_cache_version', CACHE_KEY_VER);
+      }
+    } catch (e) {}
+
     productAPI.getAll({})
       .then(res => {
         let fullList = (res.success && Array.isArray(res.data)) ? res.data.map((p, idx) => normalizeProduct(p, idx)) : [];
@@ -130,7 +139,7 @@ function MainApp() {
         let fullList = getCleanCustomProducts();
         try {
           const cached = JSON.parse(localStorage.getItem('vibebili_cached_products') || '[]');
-          if (cached.length > 0) fullList = cached;
+          if (cached.length > 0) fullList = cached.map((p, idx) => normalizeProduct(p, idx));
         } catch (e) {}
 
         setAllProducts(fullList);
