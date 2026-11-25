@@ -66,6 +66,65 @@ function calculateEaseAllowance(userMeasurements, sizeChart) {
 }
 
 // =========================================================
+// HELPER: Chuyển mô tả sản phẩm sang tiếng Anh chuẩn cho IDM-VTON
+// =========================================================
+function buildEnglishGarmentDescription(name = '', category = '') {
+  const raw = `${name} ${category}`.toLowerCase();
+  let garmentType = 'stylish upper body top';
+  if (raw.includes('đầm') || raw.includes('váy') || raw.includes('dress')) {
+    garmentType = 'stylish fashion dress';
+  } else if (raw.includes('hoodie')) {
+    garmentType = 'pullover hoodie sweatshirt';
+  } else if (raw.includes('bomber')) {
+    garmentType = 'bomber jacket outerwear';
+  } else if (raw.includes('blazer') || raw.includes('vest')) {
+    garmentType = 'tailored blazer suit jacket';
+  } else if (raw.includes('khoác') || raw.includes('jacket') || raw.includes('cardigan')) {
+    garmentType = 'casual fashion jacket';
+  } else if (raw.includes('sơ mi') || raw.includes('so mi')) {
+    garmentType = raw.includes('ngắn') || raw.includes('cộc') ? 'short sleeve button-up collared shirt' : 'long sleeve button-up collared shirt';
+  } else if (raw.includes('polo')) {
+    garmentType = 'collared polo shirt';
+  } else if (raw.includes('croptop') || raw.includes('crop top')) {
+    garmentType = 'fitted women crop top';
+  } else if (raw.includes('len') || raw.includes('dệt kim') || raw.includes('sweater')) {
+    garmentType = 'knitted pullover sweater';
+  } else if (raw.includes('ba lỗ') || raw.includes('tank')) {
+    garmentType = 'sleeveless athletic tank top';
+  } else if (raw.includes('thun') || raw.includes('t-shirt') || raw.includes('tee')) {
+    garmentType = raw.includes('dài tay') ? 'long sleeve cotton t-shirt' : 'oversized short sleeve cotton t-shirt';
+  } else if (raw.includes('quần') || raw.includes('jeans') || raw.includes('short')) {
+    garmentType = 'fashion trousers pants';
+  }
+  return `A photorealistic ${garmentType}, clean fabric texture`;
+}
+
+// =========================================================
+// CONTROLLER: GET /api/try-on/proxy-image (Tránh lỗi CORS trình duyệt)
+// =========================================================
+exports.proxyImage = async (req, res) => {
+  const { url } = req.query;
+  if (!url || !url.startsWith('http')) {
+    return res.status(400).json({ message: 'URL ảnh không hợp lệ' });
+  }
+  try {
+    const resp = await axios.get(url, {
+      responseType: 'arraybuffer',
+      timeout: 15000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+    res.set('Content-Type', resp.headers['content-type'] || 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.set('Access-Control-Allow-Origin', '*');
+    return res.send(Buffer.from(resp.data));
+  } catch (err) {
+    return res.status(502).json({ message: 'Không thể tải ảnh qua proxy: ' + err.message });
+  }
+};
+
+// =========================================================
 // CONTROLLER: POST /api/try-on/virtual-try-on
 // =========================================================
 exports.virtualTryOn = async (req, res) => {
@@ -162,12 +221,14 @@ exports.virtualTryOn = async (req, res) => {
 
     // 4. Chạy song song: Python AI Try-On + Gemini Size Advice
     const pythonUrl = process.env.PYTHON_AI_URL || 'http://localhost:8000';
+    const englishGarmentDes = buildEnglishGarmentDescription(product.name, productData?.category);
 
     const tryOnPromise = axios.post(`${pythonUrl}/api/generate-tryon`, {
       person_img: optimizedBase64,
       garment_img: fullGarmentUrl,
-      garment_des: product.name
-    }, { timeout: 120000 }); // IDM-VTON có thể mất đến 2 phút
+      garment_des: englishGarmentDes,
+      garment_name_vi: product.name || ''
+    }, { timeout: 150000 }); // IDM-VTON + multi-space failover
 
     let sizeAdvicePromise = Promise.resolve(null);
     if (measurements) {
@@ -187,10 +248,10 @@ Trả về đúng định dạng JSON: {"recommended_size": "...", "fit_analysis
 
     const [pythonRes, sizeAdvice] = await Promise.all([tryOnPromise, sizeAdvicePromise]);
 
-    // Lấy đúng biến result_img từ Python service
-    const resultImageUrl = pythonRes?.data?.result_img;
+    // Lấy result_base64 (bền vững, không phụ thuộc localhost URL) hoặc result_img từ Python service
+    const resultImageUrl = pythonRes?.data?.result_base64 || pythonRes?.data?.result_img;
     if (!resultImageUrl) {
-      throw new Error('Python AI service không trả về result_img');
+      throw new Error('Python AI service không trả về ảnh kết quả');
     }
 
     // 5. Lưu kết quả vào Cache MySQL

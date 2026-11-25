@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { analyzeTryOnWithGemini } from '../services/geminiVisionService';
 import { compositeTryOnLayers } from '../utils/tryOnCompositor';
+import { runDirectBrowserVton, removeGarmentBgInBrowser } from '../services/hfVtonClient';
 
 export default function TryOnModal({ product, isOpen, onClose }) {
   const [userImage, setUserImage] = useState(null);
@@ -37,9 +38,10 @@ export default function TryOnModal({ product, isOpen, onClose }) {
       // 1. Thử gọi Backend API (/api/try-on/virtual-try-on)
       const res = await axios.post('http://localhost:5000/api/try-on/virtual-try-on', {
         productId: product.id,
+        productData: product,
         userImageBase64: userImage,
         measurements
-      }, { timeout: 120000 });
+      }, { timeout: 150000 });
 
       if (res && res.data) {
         setResult(res.data);
@@ -48,23 +50,39 @@ export default function TryOnModal({ product, isOpen, onClose }) {
     } catch (err) {
       console.warn('Backend /api/try-on/virtual-try-on chưa chạy hoặc đang chạy trên Vercel, tự động kích hoạt Gemini AI Client Engine:', err.message);
 
-      // 2. Tự động kích hoạt Gemini AI Vision Client Engine
+      // 2. Tự động kích hoạt IDM-VTON Trình Duyệt + Gemini AI Vision Client Engine
       try {
         const clothingImg = product.main_image || product.image || product.image_url || product.overlayImage;
-        const visionData = await analyzeTryOnWithGemini({
-          personImg: userImage,
-          clothingImg,
-          clothingData: product,
-          measurements
-        });
+        const [vtonRes, visionData] = await Promise.all([
+          runDirectBrowserVton({
+            personImgSrc: userImage,
+            clothingImgSrc: clothingImg,
+            clothingData: product
+          }).catch(() => null),
+          analyzeTryOnWithGemini({
+            personImg: userImage,
+            clothingImg,
+            clothingData: product,
+            measurements
+          })
+        ]);
 
-        const renderedImg = await compositeTryOnLayers({
-          personImgSrc: userImage,
-          wigImgSrc: null,
-          clothingImgSrc: clothingImg,
-          clothingData: product,
-          geminiVision: visionData
-        });
+        let finalRendered = vtonRes?.resultImageUrl || null;
+        if (!finalRendered) {
+          let cleanGarmentInput = clothingImg;
+          try {
+            const segBlob = await removeGarmentBgInBrowser(clothingImg);
+            cleanGarmentInput = URL.createObjectURL(segBlob);
+          } catch {}
+
+          finalRendered = await compositeTryOnLayers({
+            personImgSrc: userImage,
+            wigImgSrc: null,
+            clothingImgSrc: cleanGarmentInput,
+            clothingData: product,
+            geminiVision: visionData
+          });
+        }
 
         // Đề xuất size theo số đo và size_chart
         let recSize = 'Size M';
@@ -74,8 +92,8 @@ export default function TryOnModal({ product, isOpen, onClose }) {
         else if (w > 58 || c > 89) recSize = 'Size L';
 
         setResult({
-          source: 'gemini_client',
-          resultImageUrl: renderedImg || userImage,
+          source: vtonRes ? 'ai_generated' : 'gemini_client',
+          resultImageUrl: finalRendered || userImage,
           sizeAdvice: {
             recommended_size: recSize,
             fit_analysis: (visionData?.feedback && Array.isArray(visionData.feedback))
@@ -178,8 +196,8 @@ export default function TryOnModal({ product, isOpen, onClose }) {
               {userImage && result && (
                 <div className="relative w-full h-full select-none">
                   <img src={result.resultImageUrl} alt="After" className="absolute inset-0 w-full h-full object-contain" />
-                  <div className="absolute inset-0 overflow-hidden" style={{ width: `${sliderPos}%` }}>
-                    <img src={userImage} alt="Before" className="w-full h-full object-contain max-w-none" />
+                  <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ clipPath: `inset(0 ${100 - sliderPos}% 0 0)` }}>
+                    <img src={userImage} alt="Before" className="w-full h-full object-contain" />
                   </div>
                   <input
                     type="range"

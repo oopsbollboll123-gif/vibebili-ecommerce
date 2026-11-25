@@ -8,11 +8,29 @@ const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY || (typeof atob !== '
 
 // Danh sách các model Gemini ưu tiên (nhanh, hỗ trợ đa phương thức Vision và trả về JSON chuẩn xác)
 const GEMINI_VISION_MODELS = [
-  'gemini-flash-lite-latest',
-  'gemini-3.1-flash-lite',
-  'gemini-3-flash-preview',
-  'gemini-3.5-flash-lite'
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-flash-latest',
+  'gemini-3-flash-preview'
 ];
+
+/**
+ * Đọc Blob thành base64 inlineData
+ */
+const blobToInlineData = (blob) => new Promise((resolve) => {
+  const reader = new FileReader();
+  reader.onloadend = () => {
+    const res = reader.result;
+    if (typeof res === 'string' && res.includes(';base64,')) {
+      const parts = res.split(';base64,');
+      resolve({ mimeType: blob.type || 'image/jpeg', data: parts[1] });
+    } else {
+      resolve(null);
+    }
+  };
+  reader.onerror = () => resolve(null);
+  reader.readAsDataURL(blob);
+});
 
 /**
  * Chuyển đổi Image URL, Canvas hoặc HTMLImageElement thành base64 inlineData cho Gemini Vision
@@ -38,35 +56,40 @@ export const imageToBase64Data = async (imageInput) => {
 
   // Nếu là Image element
   if (typeof HTMLImageElement !== 'undefined' && imageInput instanceof HTMLImageElement && imageInput.complete && imageInput.naturalWidth > 0) {
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = Math.min(imageInput.naturalWidth, 800);
-    tempCanvas.height = Math.round((tempCanvas.width / imageInput.naturalWidth) * imageInput.naturalHeight);
-    const ctx = tempCanvas.getContext('2d');
-    ctx.drawImage(imageInput, 0, 0, tempCanvas.width, tempCanvas.height);
-    const dUrl = tempCanvas.toDataURL('image/jpeg', 0.85);
-    const parts = dUrl.split(';base64,');
-    return { mimeType: 'image/jpeg', data: parts[1] };
+    try {
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = Math.min(imageInput.naturalWidth, 800);
+      tempCanvas.height = Math.round((tempCanvas.width / imageInput.naturalWidth) * imageInput.naturalHeight);
+      const ctx = tempCanvas.getContext('2d');
+      ctx.drawImage(imageInput, 0, 0, tempCanvas.width, tempCanvas.height);
+      const dUrl = tempCanvas.toDataURL('image/jpeg', 0.85);
+      const parts = dUrl.split(';base64,');
+      return { mimeType: 'image/jpeg', data: parts[1] };
+    } catch {}
   }
 
-  // Nếu là URL web (thông qua fetch trực tiếp hoặc fallback)
+  // Nếu là URL web (thử fetch trực tiếp -> qua proxy CORS wsrv.nl)
   if (typeof imageInput === 'string' && (imageInput.startsWith('http://') || imageInput.startsWith('https://'))) {
-    try {
-      const resp = await fetch(imageInput);
-      const blob = await resp.blob();
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const res = reader.result;
-          const parts = res.split(';base64,');
-          resolve({ mimeType: blob.type || 'image/jpeg', data: parts[1] });
-        };
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(blob);
-      });
-    } catch (err) {
-      console.warn('[GeminiVision] Không thể fetch trực tiếp URL ảnh, dùng mốc giải phẫu tối ưu:', err.message);
-      return null;
+    const urlsToTry = [
+      imageInput,
+      imageInput.includes('wsrv.nl') ? null : `https://wsrv.nl/?url=${encodeURIComponent(imageInput)}&output=jpg&w=800`
+    ].filter(Boolean);
+
+    for (const url of urlsToTry) {
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) continue;
+        const blob = await resp.blob();
+        if (blob && blob.size > 200) {
+          const inline = await blobToInlineData(blob);
+          if (inline) return inline;
+        }
+      } catch {
+        continue;
+      }
     }
+    console.warn('[GeminiVision] Không thể fetch URL ảnh qua CORS proxy:', imageInput);
+    return null;
   }
 
   return null;

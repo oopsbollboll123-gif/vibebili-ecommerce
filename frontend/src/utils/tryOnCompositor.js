@@ -17,7 +17,7 @@
 import { tryOnAPI } from '../services/api';
 
 /**
- * Tải ảnh an toàn, tự động xử lý CORS & Proxy fallback
+ * Tải ảnh an toàn, tự động xử lý CORS & Proxy fallback (Backend proxy -> wsrv.nl)
  */
 export const loadImageSafely = (src) => {
   return new Promise((resolve) => {
@@ -28,31 +28,52 @@ export const loadImageSafely = (src) => {
     }
 
     const img = new Image();
-    if (!src.startsWith('data:') && !src.startsWith('blob:')) {
+    const isLocalOrData = src.startsWith('data:') || src.startsWith('blob:');
+    if (!isLocalOrData) {
       img.crossOrigin = 'anonymous';
     }
 
-    const tryFallback = () => {
-      // Thử dùng wsrv.nl proxy nếu nguồn bên ngoài bị chặn CORS
-      if (!src.startsWith('data:') && !src.startsWith('blob:') && !src.includes('wsrv.nl')) {
-        const fallbackImg = new Image();
-        fallbackImg.crossOrigin = 'anonymous';
-        fallbackImg.onload = () => resolve(fallbackImg);
-        fallbackImg.onerror = () => {
-          // Thử nạp trực tiếp
-          const rawImg = new Image();
-          rawImg.onload = () => resolve(rawImg);
-          rawImg.onerror = () => resolve(img);
-          rawImg.src = src;
-        };
-        fallbackImg.src = `https://wsrv.nl/?url=${encodeURIComponent(src)}`;
-      } else {
-        resolve(img);
+    const candidates = isLocalOrData
+      ? [src]
+      : [
+          src,
+          `https://wsrv.nl/?url=${encodeURIComponent(src)}&output=png`,
+          tryOnAPI.getProxyUrl(src)
+        ];
+
+    let idx = 0;
+    const tryNext = () => {
+      idx += 1;
+      if (idx >= candidates.length) {
+        // Fallback cuối cùng (có thể taint canvas nhưng luôn hiển thị được)
+        const rawImg = new Image();
+        rawImg.onload = () => resolve(rawImg);
+        rawImg.onerror = () => resolve(img);
+        rawImg.src = src;
+        return;
       }
+      const nextImg = new Image();
+      nextImg.crossOrigin = 'anonymous';
+      const t = setTimeout(() => {
+        nextImg.onload = null;
+        nextImg.onerror = null;
+        tryNext();
+      }, 4500);
+      nextImg.onload = () => {
+        clearTimeout(t);
+        resolve(nextImg);
+      };
+      nextImg.onerror = () => {
+        clearTimeout(t);
+        tryNext();
+      };
+      nextImg.src = candidates[idx];
     };
 
     const timer = setTimeout(() => {
-      tryFallback();
+      img.onload = null;
+      img.onerror = null;
+      tryNext();
     }, 4500);
 
     img.onload = () => {
@@ -62,10 +83,10 @@ export const loadImageSafely = (src) => {
 
     img.onerror = () => {
       clearTimeout(timer);
-      tryFallback();
+      tryNext();
     };
 
-    img.src = src;
+    img.src = candidates[0];
   });
 };
 
@@ -120,27 +141,25 @@ export const cropToGarmentBounds = (canvas) => {
  * - Khử phông thông minh với thuật toán đa góc biên, bảo toàn 100% thớ vải và đường may.
  */
 export const smartSegmentGarment = async (sourceImg, geminiBoundingBox = null) => {
-  let w = sourceImg.naturalWidth || sourceImg.width || 600;
-  let h = sourceImg.naturalHeight || sourceImg.height || 800;
+  const w = sourceImg.naturalWidth || sourceImg.width || 600;
+  const h = sourceImg.naturalHeight || sourceImg.height || 800;
 
-  // 1. CẮT THEO BOUNDING BOX CỦA GEMINI (NẾU CÓ) ĐỂ BỎ GHẾ / TƯỜNG XUNG QUANH
+  // 1. CẮT THEO BOUNDING BOX CỦA GEMINI (LOẠI BỎ ĐẦU NGƯỜI MẪU / GHẾ / TƯỜNG XUNG QUANH)
   let cropX = 0, cropY = 0, cropW = w, cropH = h;
   if (geminiBoundingBox && Array.isArray(geminiBoundingBox) && geminiBoundingBox.length === 4) {
     let [ymin, xmin, ymax, xmax] = geminiBoundingBox;
-    // Chuẩn hóa tọa độ nếu là thang 0-1000
     if (ymin > 100 || ymax > 100 || xmin > 100 || xmax > 100) {
       ymin /= 10; xmin /= 10; ymax /= 10; xmax /= 10;
     }
-    // Mở rộng viền an toàn 2%
-    ymin = Math.max(0, ymin - 2);
-    xmin = Math.max(0, xmin - 2);
-    ymax = Math.min(100, ymax + 2);
-    xmax = Math.min(100, xmax + 2);
+    ymin = Math.max(0, ymin - 1.5);
+    xmin = Math.max(0, xmin - 1.5);
+    ymax = Math.min(100, ymax + 1.5);
+    xmax = Math.min(100, xmax + 1.5);
 
     cropX = Math.round((xmin / 100) * w);
     cropY = Math.round((ymin / 100) * h);
-    cropW = Math.round(((xmax - xmin) / 100) * w);
-    cropH = Math.round(((ymax - ymin) / 100) * h);
+    cropW = Math.max(40, Math.round(((xmax - xmin) / 100) * w));
+    cropH = Math.max(40, Math.round(((ymax - ymin) / 100) * h));
   }
 
   const baseCanvas = document.createElement('canvas');
@@ -149,93 +168,111 @@ export const smartSegmentGarment = async (sourceImg, geminiBoundingBox = null) =
   const baseCtx = baseCanvas.getContext('2d', { willReadFrequently: true });
   baseCtx.drawImage(sourceImg, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
-  // 2. TÁCH PHÔNG NỀN BIÊN XUNG QUANH
-  const imgData = baseCtx.getImageData(0, 0, cropW, cropH);
+  let imgData;
+  try {
+    imgData = baseCtx.getImageData(0, 0, cropW, cropH);
+  } catch (secErr) {
+    // Canvas bị CORS taint: trả về bản đã cắt theo bounding box
+    return baseCanvas;
+  }
+
   const data = imgData.data;
 
-  // Thu thập mẫu màu nền từ 4 góc và 4 cạnh của ảnh áo
-  const bgSamples = [];
-  for (let x = 0; x < cropW; x += 6) {
-    bgSamples.push([x, 0]);
-    bgSamples.push([x, cropH - 1]);
-  }
-  for (let y = 0; y < cropH; y += 6) {
-    bgSamples.push([0, y]);
-    bgSamples.push([cropW - 1, y]);
-  }
-
-  let totalR = 0, totalG = 0, totalB = 0, count = 0;
-  bgSamples.forEach(([x, y]) => {
+  // 2. MẪU MÀU NỀN CỤC BỘ TỪ CÁC CẠNH BIÊN (MULTI-CLUSTER EDGE PALETTE)
+  const borderClusters = [];
+  const step = Math.max(4, Math.floor(Math.min(cropW, cropH) / 24));
+  const addCluster = (x, y) => {
     const idx = (y * cropW + x) * 4;
-    totalR += data[idx];
-    totalG += data[idx + 1];
-    totalB += data[idx + 2];
-    count++;
-  });
-
-  const avgR = count > 0 ? totalR / count : 240;
-  const avgG = count > 0 ? totalG / count : 240;
-  const avgB = count > 0 ? totalB / count : 240;
+    if (data[idx + 3] < 40) return;
+    const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+    const exists = borderClusters.some(c => Math.abs(c[0] - r) + Math.abs(c[1] - g) + Math.abs(c[2] - b) < 28);
+    if (!exists && borderClusters.length < 18) borderClusters.push([r, g, b]);
+  };
+  for (let x = 0; x < cropW; x += step) { addCluster(x, 1); addCluster(x, cropH - 2); }
+  for (let y = 0; y < cropH; y += step) { addCluster(1, y); addCluster(cropW - 2, y); }
 
   const mask = new Uint8Array(cropW * cropH);
-  const queue = [];
+  const queue = new Int32Array(cropW * cropH);
+  let qHead = 0, qTail = 0;
 
-  const isBackground = (idx) => {
-    const a = data[idx + 3];
-    if (a < 30) return true;
-    const r = data[idx];
-    const g = data[idx + 1];
-    const b = data[idx + 2];
-
-    // Phát hiện phông trắng studio hoặc phông sáng
-    if (r > 225 && g > 225 && b > 225 && Math.abs(r - g) < 22 && Math.abs(g - b) < 22) {
-      return true;
+  const isBgColor = (pxIdx) => {
+    const off = pxIdx * 4;
+    const a = data[off + 3];
+    if (a < 35) return true;
+    const r = data[off], g = data[off + 1], b = data[off + 2];
+    const maxC = Math.max(r, g, b), minC = Math.min(r, g, b);
+    // Nền studio trắng/xám sáng nối liền với biên
+    if (minC > 224 && (maxC - minC) < 20) return true;
+    // Khớp cụm màu biên xung quanh
+    for (let i = 0; i < borderClusters.length; i++) {
+      const [br, bg, bb] = borderClusters[i];
+      const d2 = (r - br) * (r - br) + (g - bg) * (g - bg) + (b - bb) * (b - bb);
+      if (d2 < 1450) return true; // ~38 RGB Euclidean
     }
-    // Khoảng cách màu với viền nền
-    const dist = Math.sqrt((r - avgR) ** 2 + (g - avgG) ** 2 + (b - avgB) ** 2);
-    return dist < 36;
+    return false;
   };
 
-  // Khởi tạo hàng đợi flood-fill từ các điểm biên
-  for (let x = 0; x < cropW; x++) {
-    const tIdx = x;
-    const bIdx = (cropH - 1) * cropW + x;
-    if (isBackground(tIdx * 4)) { mask[tIdx] = 1; queue.push(tIdx); }
-    if (isBackground(bIdx * 4)) { mask[bIdx] = 1; queue.push(bIdx); }
-  }
-  for (let y = 0; y < cropH; y++) {
-    const lIdx = y * cropW;
-    const rIdx = y * cropW + (cropW - 1);
-    if (!mask[lIdx] && isBackground(lIdx * 4)) { mask[lIdx] = 1; queue.push(lIdx); }
-    if (!mask[rIdx] && isBackground(rIdx * 4)) { mask[rIdx] = 1; queue.push(rIdx); }
-  }
+  // Flood-fill từ toàn bộ 4 viền ngoài (không bao giờ đục thủng họa tiết bên trong áo)
+  const trySeed = (pxIdx) => {
+    if (mask[pxIdx] === 0 && isBgColor(pxIdx)) {
+      mask[pxIdx] = 1;
+      queue[qTail++] = pxIdx;
+    }
+  };
+  for (let x = 0; x < cropW; x++) { trySeed(x); trySeed((cropH - 1) * cropW + x); }
+  for (let y = 0; y < cropH; y++) { trySeed(y * cropW); trySeed(y * cropW + (cropW - 1)); }
 
-  let head = 0;
-  while (head < queue.length) {
-    const cur = queue[head++];
+  while (qHead < qTail) {
+    const cur = queue[qHead++];
     const cx = cur % cropW;
-    const cy = Math.floor(cur / cropW);
+    const cy = (cur / cropW) | 0;
+    const curOff = cur * 4;
+    const cr = data[curOff], cg = data[curOff + 1], cb = data[curOff + 2];
 
-    const neighbors = [
-      cx > 0 ? cur - 1 : -1,
-      cx < cropW - 1 ? cur + 1 : -1,
-      cy > 0 ? cur - cropW : -1,
-      cy < cropH - 1 ? cur + cropW : -1
-    ];
-
-    for (let i = 0; i < 4; i++) {
-      const n = neighbors[i];
-      if (n !== -1 && mask[n] === 0 && isBackground(n * 4)) {
-        mask[n] = 1;
-        queue.push(n);
+    const checkNeighbor = (nIdx) => {
+      if (mask[nIdx] !== 0) return;
+      const nOff = nIdx * 4;
+      if (data[nOff + 3] < 35) { mask[nIdx] = 1; queue[qTail++] = nIdx; return; }
+      const nr = data[nOff], ng = data[nOff + 1], nb = data[nOff + 2];
+      // Edge-aware: dừng khi gặp ranh giới tương phản sắc nét của mép vải
+      const localDiff = Math.abs(nr - cr) + Math.abs(ng - cg) + Math.abs(nb - cb);
+      if (localDiff < 55 && isBgColor(nIdx)) {
+        mask[nIdx] = 1;
+        queue[qTail++] = nIdx;
       }
+    };
+
+    if (cx > 0) checkNeighbor(cur - 1);
+    if (cx < cropW - 1) checkNeighbor(cur + 1);
+    if (cy > 0) checkNeighbor(cur - cropW);
+    if (cy < cropH - 1) checkNeighbor(cur + cropW);
+  }
+
+  // 3. GIỮ LẠI KHỐI TRANG PHỤC LỚN NHẤT & XÓA VỆT RỜI RẠC + LÀM MỊN VIỀN (FEATHER 1.5PX)
+  for (let i = 0; i < cropW * cropH; i++) {
+    if (mask[i] === 1) {
+      data[i * 4 + 3] = 0;
     }
   }
 
-  // Áp dụng mask xóa nền và làm mịn viền lông (feather)
-  for (let i = 0; i < cropW * cropH; i++) {
-    if (mask[i] === 1) {
-      data[i * 4 + 3] = 0; // Xóa trong suốt
+  // Làm mịn biên alpha (giảm răng cưa viền trắng/xám quanh áo)
+  const alphaCopy = new Uint8Array(cropW * cropH);
+  for (let i = 0; i < cropW * cropH; i++) alphaCopy[i] = data[i * 4 + 3];
+  for (let y = 1; y < cropH - 1; y++) {
+    for (let x = 1; x < cropW - 1; x++) {
+      const i = y * cropW + x;
+      if (alphaCopy[i] > 0) {
+        const bgNeighbors =
+          (alphaCopy[i - 1] === 0 ? 1 : 0) +
+          (alphaCopy[i + 1] === 0 ? 1 : 0) +
+          (alphaCopy[i - cropW] === 0 ? 1 : 0) +
+          (alphaCopy[i + cropW] === 0 ? 1 : 0);
+        if (bgNeighbors >= 2) {
+          data[i * 4 + 3] = Math.round(alphaCopy[i] * 0.45);
+        } else if (bgNeighbors === 1) {
+          data[i * 4 + 3] = Math.round(alphaCopy[i] * 0.78);
+        }
+      }
     }
   }
 
@@ -299,71 +336,99 @@ export const apply3DFabricShading = (garmentCanvas, lightingDirection = 'front')
  * BẢO TOÀN BÀN TAY & CÁNH TAY ĐẶT TRƯỚC NGỰC
  */
 export const blendForegroundHands = (personCanvas, renderedCanvas, clothX, clothY, clothW, clothH) => {
-  const w = renderedCanvas.width;
-  const h = renderedCanvas.height;
+  try {
+    const w = renderedCanvas.width;
+    const h = renderedCanvas.height;
 
-  const pCtx = personCanvas.getContext('2d', { willReadFrequently: true });
-  const pData = pCtx.getImageData(0, 0, w, h).data;
+    const pCtx = personCanvas.getContext('2d', { willReadFrequently: true });
+    const pData = pCtx.getImageData(0, 0, w, h).data;
 
-  const rCtx = renderedCanvas.getContext('2d', { willReadFrequently: true });
-  const rImgData = rCtx.getImageData(0, 0, w, h);
-  const rData = rImgData.data;
+    const rCtx = renderedCanvas.getContext('2d', { willReadFrequently: true });
+    const rImgData = rCtx.getImageData(0, 0, w, h);
+    const rData = rImgData.data;
 
-  const startX = Math.max(0, Math.round(clothX + clothW * 0.20));
-  const endX = Math.min(w - 1, Math.round(clothX + clothW * 0.80));
-  const startY = Math.max(0, Math.round(clothY));
-  const endY = Math.min(h - 1, Math.round(clothY + clothH * 0.50));
+    const startX = Math.max(0, Math.round(clothX + clothW * 0.20));
+    const endX = Math.min(w - 1, Math.round(clothX + clothW * 0.80));
+    const startY = Math.max(0, Math.round(clothY));
+    const endY = Math.min(h - 1, Math.round(clothY + clothH * 0.50));
 
-  for (let y = startY; y < endY; y++) {
-    for (let x = startX; x < endX; x++) {
-      const idx = (y * w + x) * 4;
-      const r = pData[idx];
-      const g = pData[idx + 1];
-      const b = pData[idx + 2];
+    for (let y = startY; y < endY; y++) {
+      for (let x = startX; x < endX; x++) {
+        const idx = (y * w + x) * 4;
+        const r = pData[idx];
+        const g = pData[idx + 1];
+        const b = pData[idx + 2];
 
-      const cb = -0.168736 * r - 0.331264 * g + 0.5 * b + 128;
-      const cr = 0.5 * r - 0.418688 * g - 0.081312 * b + 128;
+        const cb = -0.168736 * r - 0.331264 * g + 0.5 * b + 128;
+        const cr = 0.5 * r - 0.418688 * g - 0.081312 * b + 128;
 
-      const isSkin = (cb >= 78 && cb <= 126 && cr >= 134 && cr <= 172) &&
-                     (r > 95 && g > 40 && b > 20 && r > g && g > b);
+        const isSkin = (cb >= 78 && cb <= 126 && cr >= 134 && cr <= 172) &&
+                       (r > 95 && g > 40 && b > 20 && r > g && g > b);
 
-      if (isSkin) {
-        rData[idx] = r;
-        rData[idx + 1] = g;
-        rData[idx + 2] = b;
-        rData[idx + 3] = 255;
+        if (isSkin) {
+          rData[idx] = r;
+          rData[idx + 1] = g;
+          rData[idx + 2] = b;
+          rData[idx + 3] = 255;
+        }
       }
     }
-  }
 
-  rCtx.putImageData(rImgData, 0, 0);
+    rCtx.putImageData(rImgData, 0, 0);
+  } catch (e) {
+    // Bỏ qua an toàn nếu canvas bị tainted bởi nguồn ảnh ngoài
+  }
   return renderedCanvas;
 };
 
 /**
- * XÓA VÙNG ĐỒ CŨ TRÊN NGƯỜI MẪU (ERASE & INPAINT OLD CLOTHES)
- * Tái tạo nền da cơ thể chân thật theo đúng mã màu da thật skin_tone_hex của người mẫu,
- * làm sạch hoàn toàn viền cổ và vai áo cũ để nhường chỗ cho áo mới mặc vào.
+ * MẪU MÀU DA THẬT TỪ VÙNG CỔ CỦA NGƯỜI MẪU
  */
-export const eraseOldClothesAndResurface = (ctx, canvasW, canvasH, personNeckY, personNeckX, leftShoulder, rightShoulder, skinToneHex = '#fbdcc4') => {
+const sampleNeckSkinHex = (personCanvas, neckX, neckY, fallbackHex = '#fbdcc4') => {
+  try {
+    const ctx = personCanvas.getContext('2d', { willReadFrequently: true });
+    const x = Math.max(4, Math.min(personCanvas.width - 5, Math.round(neckX)));
+    const y = Math.max(4, Math.min(personCanvas.height - 5, Math.round(neckY - 12)));
+    const p = ctx.getImageData(x - 3, y - 3, 7, 7).data;
+    let sr = 0, sg = 0, sb = 0, cnt = 0;
+    for (let i = 0; i < p.length; i += 4) {
+      const r = p[i], g = p[i + 1], b = p[i + 2];
+      if (r > 80 && g > 40 && b > 20 && r >= g && g >= b - 10) {
+        sr += r; sg += g; sb += b; cnt++;
+      }
+    }
+    if (cnt > 5) {
+      return `rgb(${Math.round(sr / cnt)}, ${Math.round(sg / cnt)}, ${Math.round(sb / cnt)})`;
+    }
+  } catch {}
+  return fallbackHex;
+};
+
+/**
+ * XÓA VÙNG ĐỒ CŨ TRÊN NGƯỜI MẪU (ERASE & INPAINT OLD CLOTHES)
+ */
+export const eraseOldClothesAndResurface = (ctx, canvasW, canvasH, personNeckY, personNeckX, leftShoulder, rightShoulder, skinToneHex = '#fbdcc4', personCanvas = null) => {
   ctx.save();
 
-  // Xác định vị trí cổ và bờ vai
+  const resolvedSkin = personCanvas ? sampleNeckSkinHex(personCanvas, personNeckX, personNeckY, skinToneHex) : skinToneHex;
   const neckY = personNeckY;
-  const shoulderY = leftShoulder && leftShoulder[0] ? (leftShoulder[0] / 100) * canvasH : neckY + 12;
-  const leftX = leftShoulder && leftShoulder[1] ? (leftShoulder[1] / 100) * canvasW : canvasW * 0.24;
-  const rightX = rightShoulder && rightShoulder[1] ? (rightShoulder[1] / 100) * canvasW : canvasW * 0.76;
-  const bodyW = rightX - leftX;
+  const shoulderY = leftShoulder && leftShoulder[0] ? (leftShoulder[0] / 100) * canvasH : neckY + 18;
+  const leftX = leftShoulder && leftShoulder[1] ? (leftShoulder[1] / 100) * canvasW : canvasW * 0.28;
+  const rightX = rightShoulder && rightShoulder[1] ? (rightShoulder[1] / 100) * canvasW : canvasW * 0.72;
+  const bodyW = Math.max(canvasW * 0.32, Math.abs(rightX - leftX));
 
-  // 1. Phủ chuyển tiếp màu da mềm mại tại xương quai xanh (Clavicle Blend)
-  const skinGrad = ctx.createLinearGradient(0, neckY - 10, 0, shoulderY + 45);
-  skinGrad.addColorStop(0, 'rgba(0, 0, 0, 0.0)');
-  skinGrad.addColorStop(0.35, skinToneHex);
+  // Phủ da mềm vùng xương quai xanh & cổ áo cũ
+  const skinGrad = ctx.createRadialGradient(
+    personNeckX, neckY + 10, bodyW * 0.08,
+    personNeckX, shoulderY + 25, bodyW * 0.62
+  );
+  skinGrad.addColorStop(0, resolvedSkin);
+  skinGrad.addColorStop(0.55, resolvedSkin);
   skinGrad.addColorStop(1, 'rgba(0, 0, 0, 0.0)');
 
   ctx.fillStyle = skinGrad;
   ctx.beginPath();
-  ctx.ellipse(personNeckX, neckY + 14, bodyW * 0.45, 28, 0, 0, Math.PI * 2);
+  ctx.ellipse(personNeckX, neckY + 24, bodyW * 0.56, Math.max(46, (shoulderY - neckY) * 1.45), 0, 0, Math.PI * 2);
   ctx.fill();
 
   ctx.restore();
@@ -488,7 +553,8 @@ export const compositeTryOnLayers = async ({
     ctx, canvasW, canvasH, personNeckY, personNeckX,
     geminiVision?.person?.left_shoulder,
     geminiVision?.person?.right_shoulder,
-    skinToneHex
+    skinToneHex,
+    personCanvas
   );
 
   // 4. BÓC TÁCH & MẶC ÁO MỚI VÀO NGƯỜI (REPLACE CLOTHES WITH 3D FIT)
@@ -503,9 +569,9 @@ export const compositeTryOnLayers = async ({
       // B. Áp dụng ánh sáng vòm 3D và bảo toàn 100% nếp nhăn vải thật
       const cloth3D = apply3DFabricShading(cleanCloth, lightingDir);
 
-      // C. Căn kích thước vừa vặn giải phẫu học
-      const scaleMultiplier = geminiVision?.garment?.recommended_scale || 1.15;
-      const baseClothW = Math.max(canvasW * 0.72, shoulderSpan * 1.62) * scaleMultiplier * (clothingTransform.scale || 1.0);
+      // C. Căn kích thước vừa vặn giải phẫu học (khớp bờ vai thực tế)
+      const scaleMultiplier = Math.min(1.22, Math.max(0.95, geminiVision?.garment?.recommended_scale || 1.10));
+      const baseClothW = Math.min(canvasW * 0.96, Math.max(canvasW * 0.62, shoulderSpan * 1.42)) * scaleMultiplier * (clothingTransform.scale || 1.0);
       const clothAspect = cloth3D.height / cloth3D.width;
       baseClothH = baseClothW * clothAspect;
 
@@ -575,20 +641,8 @@ export const compositeTryOnLayers = async ({
     }
   }
 
-  // 6. NẾU KHÁCH CHỈ CHỌN ÁO (KHÔNG CHỌN QUẦN): TỰ ĐỘNG CẮT CÚP KHUNG HÌNH CHÂN DUNG THỜI TRANG (UPPER BODY CROP)
-  let finalCanvas = canvas;
-  if (isOnlyShirt && clothingImgSrc && clothingImgSrc !== 'none') {
-    // Cắt cúp khung hình từ đỉnh đầu xuống ngang hông / gấu áo (khoảng 68-72% chiều cao ảnh)
-    const idealBottom = baseClothH > 0 ? Math.min(canvasH, personNeckY + baseClothH + 30) : canvasH * 0.70;
-    const cropH = Math.round(Math.min(canvasH * 0.74, Math.max(canvasH * 0.62, idealBottom)));
-
-    const croppedCanvas = document.createElement('canvas');
-    croppedCanvas.width = canvasW;
-    croppedCanvas.height = cropH;
-    const cCtx = croppedCanvas.getContext('2d');
-    cCtx.drawImage(canvas, 0, 0, canvasW, cropH, 0, 0, canvasW, cropH);
-    finalCanvas = croppedCanvas;
-  }
+  // 6. GIỮ NGUYÊN KHUNG HÌNH GỐC ĐỂ THANH TRƯỢT BEFORE / AFTER KHỚP PIXEL 100%
+  const finalCanvas = canvas;
 
   const fW = finalCanvas.width;
   const fH = finalCanvas.height;

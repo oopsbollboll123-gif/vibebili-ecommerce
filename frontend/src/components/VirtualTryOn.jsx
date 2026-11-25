@@ -4,6 +4,7 @@ import { tryOnAPI, productAPI } from '../services/api';
 import { getCleanCustomProducts, DEFAULT_PRODUCT_IMAGE } from '../utils/productUtils';
 import { analyzeTryOnWithGemini } from '../services/geminiVisionService';
 import { compositeTryOnLayers } from '../utils/tryOnCompositor';
+import { runDirectBrowserVton, removeGarmentBgInBrowser } from '../services/hfVtonClient';
 import {
   SparklesIcon,
   CheckIcon,
@@ -244,38 +245,60 @@ function VirtualTryOn({ preselectedClothingId = null, onNavigateCheckout }) {
     } catch (err) {
       clearTimeout(step2Timer);
       clearTimeout(step3Timer);
-      console.warn('Backend Try-on chưa sẵn sàng hoặc gặp lỗi, tự động chuyển sang Gemini AI Vision Client Engine:', err.message);
+      console.warn('Backend Try-on chưa sẵn sàng, chuyển sang Browser IDM-VTON + Gemini Vision:', err.message);
 
       try {
         const sourceImage = customAvatarImage || selectedAvatar?.imageUrl;
         const clothingImg = selectedClothing.overlayImage || selectedClothing.image || selectedClothing.main_image;
-        
-        const visionData = await analyzeTryOnWithGemini({
-          personImg: sourceImage,
-          clothingImg,
-          clothingData: selectedClothing,
-          measurements
-        });
 
-        const renderedImg = await compositeTryOnLayers({
-          personImgSrc: sourceImage,
-          wigImgSrc: null,
-          clothingImgSrc: clothingImg,
-          clothingData: selectedClothing,
-          geminiVision: visionData
-        });
+        setScanStep(2);
+        // Chạy song song: Tách nền AI + Gọi Hugging Face IDM-VTON trực tiếp từ trình duyệt & Phân tích Gemini Vision
+        const [vtonRes, visionData] = await Promise.all([
+          runDirectBrowserVton({
+            personImgSrc: sourceImage,
+            clothingImgSrc: clothingImg,
+            clothingData: selectedClothing
+          }).catch(() => null),
+          analyzeTryOnWithGemini({
+            personImg: sourceImage,
+            clothingImg,
+            clothingData: selectedClothing,
+            measurements
+          })
+        ]);
+
+        setScanStep(3);
+        let finalRendered = vtonRes?.resultImageUrl || null;
+        let finalSource = vtonRes ? 'ai_generated' : 'gemini_client';
+
+        if (!finalRendered) {
+          // Nếu cả Backend & HF Đám mây đều quá tải: dùng AI @imgly/background-removal tách nền áo + Compositor giải phẫu
+          let cleanGarmentInput = clothingImg;
+          try {
+            const segBlob = await removeGarmentBgInBrowser(clothingImg);
+            cleanGarmentInput = URL.createObjectURL(segBlob);
+          } catch {}
+
+          finalRendered = await compositeTryOnLayers({
+            personImgSrc: sourceImage,
+            wigImgSrc: null,
+            clothingImgSrc: cleanGarmentInput,
+            clothingData: selectedClothing,
+            geminiVision: visionData
+          });
+        }
 
         const clothPrice = Number(selectedClothing.price || 0);
         let recSize = 'Size M';
         const w = Number(measurements.weight) || 50;
-        const c = Number(measurements.bust) || 84;
+        const c = Number(measurements.chest) || 84;
         if (w < 48 || c < 82) recSize = 'Size S';
         else if (w > 58 || c > 89) recSize = 'Size L';
 
         setTryOnResult({
-          source: 'gemini_client',
+          source: finalSource,
           originalImage: sourceImage,
-          renderedImage: renderedImg || sourceImage,
+          renderedImage: finalRendered || sourceImage,
           sizeAdvice: {
             recommended_size: recSize,
             fit_analysis: (visionData?.feedback && Array.isArray(visionData.feedback))
@@ -303,7 +326,7 @@ function VirtualTryOn({ preselectedClothingId = null, onNavigateCheckout }) {
         const clothPrice = Number(selectedClothing.price || 0);
         let recSize = 'Size M';
         const w = Number(measurements.weight) || 50;
-        const c = Number(measurements.bust) || 84;
+        const c = Number(measurements.chest) || 84;
         if (w < 48 || c < 82) recSize = 'Size S';
         else if (w > 58 || c > 89) recSize = 'Size L';
 
@@ -647,29 +670,28 @@ function VirtualTryOn({ preselectedClothingId = null, onNavigateCheckout }) {
             
             {/* Cột Trái (6 phần): Interactive Before / After Split Slider */}
             <div className="lg:col-span-6 flex flex-col items-center">
-              <div className="relative w-full max-w-md h-[520px] rounded-3xl overflow-hidden shadow-2xl border-2 border-gray-900 select-none bg-gray-100">
+              <div className="relative w-full max-w-md aspect-[3/4] rounded-3xl overflow-hidden shadow-2xl border-2 border-gray-900 select-none bg-gray-100">
                 
-                {/* Ảnh SAU KHI THỬ ĐỒ TỪ IDM-VTON */}
+                {/* Ảnh SAU KHI THỬ ĐỒ TỪ AI */}
                 <img 
                   src={tryOnResult.renderedImage} 
                   alt="After Look" 
-                  className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                  className="absolute inset-0 w-full h-full object-cover object-top pointer-events-none"
                 />
                 <span className="absolute top-4 right-4 bg-orange-600 text-white text-[10px] font-black uppercase px-3 py-1 rounded-full shadow-lg z-10 flex items-center gap-1">
                   <SparklesIcon className="w-3 h-3 text-white" />
-                  <span>IDM-VTON AI</span>
+                  <span>{tryOnResult.source === 'ai_generated' ? 'AI VTON Studio' : 'VibeBili AI Fit'}</span>
                 </span>
 
                 {/* Ảnh GỐC TRƯỚC KHI THỬ ĐỒ */}
                 <div 
                   className="absolute inset-y-0 left-0 overflow-hidden pointer-events-none"
-                  style={{ width: `${sliderPosition}%` }}
+                  style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)`, width: '100%' }}
                 >
                   <img 
                     src={tryOnResult.originalImage} 
                     alt="Before Look" 
-                    className="w-full h-full object-cover max-w-none"
-                    style={{ width: '448px' }}
+                    className="w-full h-full object-cover object-top pointer-events-none"
                   />
                   <span className="absolute top-4 left-4 bg-black/80 text-white text-[10px] font-bold uppercase px-3 py-1 rounded-full shadow">
                     Ảnh Gốc

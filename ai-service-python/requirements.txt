@@ -3,3 +3,8 @@ uvicorn
 gradio_client
 pillow
 pydantic
+httpx
+rembg
+onnxruntime
+opencv-python-headless
+numpy
