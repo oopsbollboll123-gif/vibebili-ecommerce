@@ -303,7 +303,7 @@ export const AuthProvider = ({ children }) => {
     return { success: true, user: cleanUser };
   };
 
-  // ── QUÊN MẬT KHẨU (HYBRID: BACKEND GMAIL + CLOUD FIRESTORE OTP) ──
+  // ── QUÊN MẬT KHẨU (GỬI OTP THẬT QUA EMAIL: BACKEND HOẶC VERCEL API) ──
   const requestPasswordReset = async (email) => {
     const cleanEmail = (email || '').trim().toLowerCase();
     if (!cleanEmail) {
@@ -313,19 +313,25 @@ export const AuthProvider = ({ children }) => {
       return { success: false, message: 'Tài khoản quản trị viên tối cao không hỗ trợ đặt lại qua form này.' };
     }
 
-    // 1. Thử gọi Backend trước (gửi OTP qua Gmail nếu Backend online và đã cấu hình SMTP)
+    // 1. Thử gọi Backend trước (gửi OTP trực tiếp qua Gmail SMTP)
     try {
       const res = await authAPI.forgotPassword(cleanEmail);
       if (res && res.success) {
         return {
           success: true,
           mode: 'email',
-          message: `✅ Mã OTP đã được gửi đến ${cleanEmail}. Vui lòng kiểm tra hộp thư (và thư mục spam).`
+          message: `✅ Mã OTP đã được gửi đến email ${cleanEmail}. Vui lòng kiểm tra hộp thư đến (và mục Spam).`
         };
       }
-      // Nếu backend báo email không tồn tại, vẫn kiểm tra tiếp trên Cloud Firestore
+      if (res && res.message && res.message.includes('Không tìm thấy')) {
+        // Kiểm tra thêm trên Cloud Firestore phòng trường hợp Backend chưa đồng bộ
+        const cloudCheck = await fetchCloudUserByEmail(cleanEmail).catch(() => null);
+        if (!cloudCheck) {
+          return { success: false, message: 'Không tìm thấy tài khoản nào đăng ký bằng email này!' };
+        }
+      }
     } catch {
-      console.warn('[ForgotPassword]: Backend offline, chuyển sang Cloud OTP.');
+      console.warn('[ForgotPassword]: Backend local chưa kết nối, thử gửi qua Vercel Serverless /api/send-otp...');
     }
 
     // 2. Kiểm tra tài khoản tồn tại trên Cloud Firestore hoặc localStorage
@@ -347,21 +353,31 @@ export const AuthProvider = ({ children }) => {
       return { success: false, message: 'Không tìm thấy tài khoản nào đăng ký bằng email này!' };
     }
 
-    // 3. Tạo OTP 6 số và lưu lên Cloud Firestore (hạn 10 phút) + localStorage fallback
+    // 3. Tạo OTP 6 số, lưu lên Cloud Firestore (10 phút) và gọi /api/send-otp (Vercel) để gửi Gmail thật
     const otp = String(Math.floor(100000 + Math.random() * 900000));
     await saveCloudOtp(cleanEmail, otp, 10 * 60 * 1000);
+
     try {
-      localStorage.setItem(`vibebili_otp_${cleanEmail}`, JSON.stringify({
-        otp,
-        expiresAt: Date.now() + 10 * 60 * 1000
-      }));
-    } catch {}
+      const mailRes = await fetch('/api/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, otp })
+      });
+      const mailData = await mailRes.json().catch(() => ({}));
+      if (mailRes.ok && mailData.success) {
+        return {
+          success: true,
+          mode: 'email',
+          message: `✅ Mã OTP đã được gửi đến email ${cleanEmail}. Vui lòng kiểm tra hộp thư đến (và mục Spam).`
+        };
+      }
+    } catch (mailErr) {
+      console.warn('[Send OTP API]:', mailErr.message);
+    }
 
     return {
-      success: true,
-      mode: 'cloud_otp',
-      fallbackOtp: otp,
-      message: `✅ Đã tạo mã xác thực OTP cho ${cleanEmail} (Hiệu lực 10 phút).`
+      success: false,
+      message: 'Không thể gửi email OTP lúc này. Vui lòng đảm bảo máy chủ gửi email (Backend hoặc Vercel SMTP) đang hoạt động!'
     };
   };
 

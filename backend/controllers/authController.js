@@ -577,14 +577,23 @@ const forgotPassword = async (req, res) => {
 
   const cleanEmail = email.trim().toLowerCase();
 
-  // Kiểm tra email tồn tại trong hệ thống
+  // Kiểm tra email tồn tại trong hệ thống (MySQL -> mockData -> Cloud Firestore)
   let userExists = false;
   try {
     const [rows] = await db.query('SELECT id FROM Users WHERE email = ?', [cleanEmail]);
     userExists = rows.length > 0;
   } catch {
-    // Fallback: kiểm tra mockData
     userExists = mockData.users.some(u => u.email?.toLowerCase() === cleanEmail);
+  }
+
+  // Nếu chưa thấy ở MySQL/mockData, kiểm tra trên Cloud Firestore (tài khoản đăng ký đa thiết bị)
+  if (!userExists) {
+    try {
+      const fsResp = await fetch(`https://firestore.googleapis.com/v1/projects/vibebili-shop/databases/(default)/documents/vibebili_users/${encodeURIComponent(cleanEmail)}`);
+      if (fsResp.ok) {
+        userExists = true;
+      }
+    } catch {}
   }
 
   // Với admin email: luôn cho phép reset
@@ -758,7 +767,12 @@ const resetPassword = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(newPassword, salt);
 
-    await db.query('UPDATE Users SET password_hash = ? WHERE email = ?', [passwordHash, cleanEmail]);
+    try {
+      await db.query('UPDATE Users SET password_hash = ? WHERE email = ?', [passwordHash, cleanEmail]);
+    } catch {
+      const mockU = mockData.users.find(u => u.email?.toLowerCase() === cleanEmail);
+      if (mockU) mockU.password = newPassword;
+    }
     otpStore.delete(cleanEmail);
 
     // Gửi email thông báo đổi mật khẩu thành công

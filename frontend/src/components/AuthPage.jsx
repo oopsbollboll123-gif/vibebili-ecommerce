@@ -56,9 +56,8 @@ function AuthPage({ onNavigateHome, onNavigateSeller, onNavigateAdmin, initialMo
     confirmNewPassword: ''
   });
 
-  // OTP: lưu tạm email & OTP Cloud (khi chạy không có SMTP server)
+  // OTP: lưu tạm email đang chờ khôi phục mật khẩu
   const [pendingResetEmail, setPendingResetEmail] = useState('');
-  const [cloudOtpPreview, setCloudOtpPreview] = useState('');
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -69,9 +68,6 @@ function AuthPage({ onNavigateHome, onNavigateSeller, onNavigateAdmin, initialMo
     setMode(newMode);
     setErrorMessage('');
     setSuccessMessage('');
-    if (newMode !== 'otp' && newMode !== 'reset') {
-      setCloudOtpPreview('');
-    }
     setFormData({
       email: '',
       password: '',
@@ -200,8 +196,7 @@ function AuthPage({ onNavigateHome, onNavigateSeller, onNavigateAdmin, initialMo
       setLoading(false);
       if (res && res.success) {
         setPendingResetEmail(cleanEmail);
-        setCloudOtpPreview(res.fallbackOtp || '');
-        setSuccessMessage(res.message || `✅ Mã OTP đã được gửi đến ${cleanEmail}.`);
+        setSuccessMessage(res.message || `✅ Mã OTP đã được gửi đến ${cleanEmail}. Vui lòng kiểm tra hộp thư (và mục Spam).`);
         setTimeout(() => { switchMode('otp'); }, 900);
       } else {
         setErrorMessage(res?.message || 'Không tìm thấy tài khoản với email này!');
@@ -245,7 +240,6 @@ function AuthPage({ onNavigateHome, onNavigateSeller, onNavigateAdmin, initialMo
       if (res && res.success) {
         setSuccessMessage(res.message || '✅ Mật khẩu đã được đặt lại thành công! Vui lòng đăng nhập lại.');
         setPendingResetEmail('');
-        setCloudOtpPreview('');
         setTimeout(() => { switchMode('login'); }, 1400);
       } else {
         setErrorMessage(res?.message || 'Đặt lại mật khẩu thất bại. Vui lòng thử lại từ đầu.');
@@ -617,25 +611,8 @@ function AuthPage({ onNavigateHome, onNavigateSeller, onNavigateAdmin, initialMo
             {mode === 'otp' && (
               <>
                 <p className="text-xs text-vibe-muted bg-blue-50 border border-blue-200 rounded-xl p-3">
-                  📧 Mã OTP xác thực cho <strong>{pendingResetEmail}</strong> có hiệu lực trong 10 phút.
+                  📧 Mã OTP đã được gửi đến email <strong>{pendingResetEmail}</strong>. Vui lòng kiểm tra hộp thư đến (hoặc mục Spam) và nhập mã có hiệu lực trong 10 phút.
                 </p>
-                {cloudOtpPreview && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between gap-2">
-                    <div className="text-xs text-amber-900">
-                      🔐 <strong>Cloud OTP của bạn:</strong>{' '}
-                      <span className="font-mono font-bold text-sm tracking-widest bg-white px-2 py-0.5 rounded border border-amber-300">
-                        {cloudOtpPreview}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, otp: cloudOtpPreview })}
-                      className="text-[11px] font-semibold bg-amber-600 text-white px-2.5 py-1 rounded-lg hover:bg-amber-700 whitespace-nowrap"
-                    >
-                      Điền nhanh
-                    </button>
-                  </div>
-                )}
                 <div>
                   <label className="block text-xs font-semibold text-vibe-700 mb-1">Mã OTP (6 chữ số) *</label>
                   <input type="text" name="otp" required maxLength={6}
