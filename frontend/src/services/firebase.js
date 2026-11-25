@@ -7,7 +7,9 @@ import {
   getFirestore,
   collection,
   doc,
+  getDoc,
   setDoc,
+  updateDoc,
   getDocs,
   deleteDoc,
   query,
@@ -225,5 +227,158 @@ export const fetchCloudOrders = async () => {
   } catch (err) {
     console.warn('[Firebase] Lỗi đọc đơn hàng:', err.message);
     return null;
+  }
+};
+
+// ============================================================
+// ĐỒNG BỘ TÀI KHOẢN & QUÊN MẬT KHẨU ĐÁM MÂY (CROSS-DEVICE AUTH)
+// ============================================================
+
+const normalizeEmailKey = (email) => (email || '').trim().toLowerCase();
+
+/**
+ * Tìm tài khoản người dùng trên Cloud Firestore theo email
+ */
+export const fetchCloudUserByEmail = async (email) => {
+  const db = getCloudDb();
+  const cleanEmail = normalizeEmailKey(email);
+  if (!db || !cleanEmail) return null;
+
+  try {
+    const docRef = doc(db, 'vibebili_users', cleanEmail);
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return snap.data();
+    }
+    return null;
+  } catch (err) {
+    console.warn('[Firebase] Lỗi đọc tài khoản đám mây:', err.message);
+    return null;
+  }
+};
+
+/**
+ * Lưu / đồng bộ tài khoản người dùng lên Cloud Firestore (dùng chung mọi máy)
+ */
+export const syncUserToCloud = async (userObj) => {
+  const db = getCloudDb();
+  const cleanEmail = normalizeEmailKey(userObj?.email);
+  if (!db || !cleanEmail) return false;
+
+  try {
+    const docRef = doc(db, 'vibebili_users', cleanEmail);
+    const payload = {
+      ...userObj,
+      email: cleanEmail,
+      id: userObj.id || Date.now(),
+      updated_at: new Date().toISOString()
+    };
+    await setDoc(docRef, payload, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn('[Firebase] Lỗi lưu tài khoản lên đám mây:', err.message);
+    return false;
+  }
+};
+
+/**
+ * Lấy danh sách toàn bộ tài khoản từ Cloud Firestore
+ */
+export const fetchAllCloudUsers = async () => {
+  const db = getCloudDb();
+  if (!db) return [];
+
+  try {
+    const colRef = collection(db, 'vibebili_users');
+    const snapshot = await getDocs(colRef);
+    const list = [];
+    snapshot.forEach((docSnap) => {
+      list.push(docSnap.data());
+    });
+    return list;
+  } catch (err) {
+    console.warn('[Firebase] Lỗi đọc danh sách tài khoản:', err.message);
+    return [];
+  }
+};
+
+/**
+ * Lưu mã OTP đặt lại mật khẩu lên Cloud Firestore (Hạn 10 phút)
+ */
+export const saveCloudOtp = async (email, otp, ttlMs = 10 * 60 * 1000) => {
+  const db = getCloudDb();
+  const cleanEmail = normalizeEmailKey(email);
+  if (!db || !cleanEmail) return false;
+
+  try {
+    const docRef = doc(db, 'vibebili_otps', cleanEmail);
+    await setDoc(docRef, {
+      email: cleanEmail,
+      otp: String(otp),
+      expiresAt: Date.now() + ttlMs,
+      attempts: 0,
+      created_at: new Date().toISOString()
+    });
+    return true;
+  } catch (err) {
+    console.warn('[Firebase] Lỗi lưu OTP đám mây:', err.message);
+    return false;
+  }
+};
+
+/**
+ * Xác thực mã OTP trên Cloud Firestore
+ */
+export const verifyCloudOtp = async (email, otp) => {
+  const db = getCloudDb();
+  const cleanEmail = normalizeEmailKey(email);
+  if (!db || !cleanEmail) return { valid: false, message: 'Không thể kết nối Cloud OTP.' };
+
+  try {
+    const docRef = doc(db, 'vibebili_otps', cleanEmail);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) {
+      return { valid: false, message: 'Mã OTP không tồn tại hoặc đã hết hạn. Vui lòng gửi lại mã mới!' };
+    }
+    const data = snap.data();
+    if (Date.now() > Number(data.expiresAt || 0)) {
+      await deleteDoc(docRef).catch(() => {});
+      return { valid: false, message: 'Mã OTP đã hết hạn (quá 10 phút). Vui lòng yêu cầu mã mới!' };
+    }
+    if ((data.attempts || 0) >= 5) {
+      return { valid: false, message: 'Bạn đã nhập sai OTP quá 5 lần. Vui lòng gửi lại mã mới!' };
+    }
+    if (String(data.otp) !== String(otp).trim()) {
+      await updateDoc(docRef, { attempts: (data.attempts || 0) + 1 }).catch(() => {});
+      return { valid: false, message: 'Mã OTP không chính xác!' };
+    }
+    return { valid: true };
+  } catch (err) {
+    console.warn('[Firebase] Lỗi xác thực OTP đám mây:', err.message);
+    return { valid: false, message: 'Lỗi xác thực OTP. Vui lòng thử lại.' };
+  }
+};
+
+/**
+ * Cập nhật mật khẩu mới lên Cloud Firestore và xóa OTP đã dùng
+ */
+export const updateCloudUserPassword = async (email, newPasswordHash) => {
+  const db = getCloudDb();
+  const cleanEmail = normalizeEmailKey(email);
+  if (!db || !cleanEmail) return false;
+
+  try {
+    const userRef = doc(db, 'vibebili_users', cleanEmail);
+    await setDoc(userRef, {
+      passwordHash: newPasswordHash,
+      updated_at: new Date().toISOString()
+    }, { merge: true });
+
+    const otpRef = doc(db, 'vibebili_otps', cleanEmail);
+    await deleteDoc(otpRef).catch(() => {});
+    return true;
+  } catch (err) {
+    console.warn('[Firebase] Lỗi cập nhật mật khẩu đám mây:', err.message);
+    return false;
   }
 };
